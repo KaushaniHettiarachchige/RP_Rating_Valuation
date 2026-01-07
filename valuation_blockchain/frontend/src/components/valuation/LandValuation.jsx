@@ -9,32 +9,33 @@ import {
 import { useState } from "react";
 import Map from "../common/Map";
 import { useSelector } from "react-redux";
+import axios from "axios";
 
 const LandValuation = () => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [propertyAddress, setPropertyAddress] = useState("");
   const [landSize, setLandSize] = useState("");
-
-  const handleCalculate = () => {
-    console.log("Owner First Name:", firstName);
-    console.log("Owner Last Name:", lastName);
-    console.log("Property Address:", propertyAddress);
-    console.log("Size of the Land:", landSize);
-
-    // Now you can store them in variables or send to API
-    const formData = {
-      firstName,
-      lastName,
-      propertyAddress,
-      landSize,
-    };
-    console.log(formData);
-  };
-
   const { latitude, longitude } = useSelector((state) => state.app);
-  console.log("🚀 ~ LandValuation ~ longitude:", longitude);
-  console.log("🚀 ~ LandValuation ~ latitude:", latitude);
+  const [data, setdata] = useState(null);
+  console.log("🚀 ~ LandValuation ~ data:", data);
+
+  const handleCalculate = async (e) => {
+    e.preventDefault();
+
+    try {
+      const res = await axios.post("http://127.0.0.1:8000/estimate", {
+        lon: Number(longitude),
+        lat: Number(latitude),
+        eol: Number(landSize),
+      });
+
+      setdata(res.data);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to estimate value");
+    }
+  };
 
   return (
     <Box
