@@ -4,14 +4,14 @@ from qgis_utils import calculate_features
 
 app = FastAPI(title="Property Valuation API")
 
-# Load regression model
+
 model = joblib.load("models/regression_model.pkl")
 
 @app.post("/estimate")
 def estimate_from_location(lon: float, lat: float, eol: float):
+    
     dtmr, zone_type, aop_score, lop_score = calculate_features(lon, lat)
 
-    # Predict land value
     X = [[aop_score, lop_score, eol, dtmr]]
     predicted_value = model.predict(X)[0]
 

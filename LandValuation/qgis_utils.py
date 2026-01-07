@@ -28,10 +28,10 @@ def calculate_features(lon, lat):
 
     user_point = QgsGeometry.fromPointXY(QgsPointXY(lon, lat))
 
-    # Distance to nearest road
+ 
     dtmr = min(user_point.distance(r.geometry()) for r in features)
 
-    # TODO: replace with real zone lookup later
+ 
     zone_type = "residential"
 
     aop_score = get_aop_score(dtmr)
