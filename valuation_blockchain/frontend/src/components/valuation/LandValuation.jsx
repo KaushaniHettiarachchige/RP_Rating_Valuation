@@ -3,11 +3,11 @@ import {
   Button,
   Divider,
   InputAdornment,
-
   TextField,
   Typography,
 } from "@mui/material";
 import { useState } from "react";
+import Map from "../common/Map";
 
 const LandValuation = () => {
   const [firstName, setFirstName] = useState("");
@@ -15,9 +15,7 @@ const LandValuation = () => {
   const [propertyAddress, setPropertyAddress] = useState("");
   const [landSize, setLandSize] = useState("");
 
-
-
-   const handleCalculate = () => {
+  const handleCalculate = () => {
     console.log("Owner First Name:", firstName);
     console.log("Owner Last Name:", lastName);
     console.log("Property Address:", propertyAddress);
@@ -32,7 +30,6 @@ const LandValuation = () => {
     };
     console.log(formData);
   };
-
 
   return (
     <Box
@@ -185,7 +182,20 @@ const LandValuation = () => {
             Calculate Value
           </Button>
         </Box>
-        <Box sx={{ bgcolor: "red" }}>2s</Box>
+        <Box sx={{ bgcolor: "red" }}> </Box>
+      </Box>
+
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: "800px",
+          height: "400px",
+          overflow: "hidden",
+          borderRadius: "10px",
+          mt: 2,
+        }}
+      >
+        <Map address={propertyAddress} />
       </Box>
     </Box>
   );

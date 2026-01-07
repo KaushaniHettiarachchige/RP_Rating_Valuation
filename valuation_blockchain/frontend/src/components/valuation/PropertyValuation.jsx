@@ -17,7 +17,6 @@ const PropertyValuation = () => {
         alignItems: "center",
         justifyContent: "flex-start",
         gap: 4,
-        height: "80vh",
       }}
     >
       <Stepper
