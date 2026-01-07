@@ -1,22 +1,39 @@
 from qgis.core import QgsVectorLayer, QgsPointXY, QgsGeometry
 from utils import get_aop_score, get_lop_score
+import os
 
 
-road_layer = QgsVectorLayer("data/main_roads.shp", "roads", "ogr")
-zone_layer = QgsVectorLayer("data/zones.shp", "zones", "ogr")
+# ---- Load Roads Shapefile ----
+# Use absolute path for safety (recommended)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ROADS_PATH = os.path.join(BASE_DIR, "data", "roads.shp")
+
+road_layer = QgsVectorLayer(ROADS_PATH, "roads", "ogr")
+
+print("Loading roads layer from:", ROADS_PATH)
+print("Valid?", road_layer.isValid())
+print("Feature count:", road_layer.featureCount())
+
 
 def calculate_features(lon, lat):
  
+
+    if not road_layer.isValid():
+        raise Exception("Road layer failed to load. Check the file path.")
+
+    features = list(road_layer.getFeatures())
+
+    if not features:
+        raise Exception("Road layer has 0 features. Check the shapefile.")
+
     user_point = QgsGeometry.fromPointXY(QgsPointXY(lon, lat))
 
- 
-    dtmr = min([user_point.distance(r.geometry()) for r in road_layer.getFeatures()])
+    # Distance to nearest road
+    dtmr = min(user_point.distance(r.geometry()) for r in features)
 
+    # TODO: replace with real zone lookup later
+    zone_type = "residential"
 
-    zone_feature = [z for z in zone_layer.getFeatures() if z.geometry().contains(user_point)][0]
-    zone_type = zone_feature["zone_name"]
-
- 
     aop_score = get_aop_score(dtmr)
     lop_score = get_lop_score(zone_type)
 

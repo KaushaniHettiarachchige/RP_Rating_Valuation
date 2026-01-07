@@ -1,34 +1,25 @@
 from fastapi import FastAPI
 import joblib
-from utils import get_aop_score, get_lop_score
+from qgis_utils import calculate_features
 
 app = FastAPI(title="Property Valuation API")
 
-
+# Load regression model
 model = joblib.load("models/regression_model.pkl")
 
-@app.get("/")
-
-def home():
-    return {"status": "Property Valuation API running"}
-
 @app.post("/estimate")
+def estimate_from_location(lon: float, lat: float, eol: float):
+    dtmr, zone_type, aop_score, lop_score = calculate_features(lon, lat)
 
-def estimate(eol: float, distance: float, zone: str, dtmr: float):
-
-  
-    AOP = get_aop_score(distance)
-    LOP = get_lop_score(zone)
-
-   
-    X = [[AOP, LOP, eol, dtmr]]
+    # Predict land value
+    X = [[aop_score, lop_score, eol, dtmr]]
     predicted_value = model.predict(X)[0]
 
     return {
-        "AOP_score": AOP,
-        "LOP_score": LOP,
         "EOL": eol,
         "DTMR": dtmr,
-        "estimated_value": round(float(predicted_value), 2)
+        "AOP": aop_score,
+        "LOP": lop_score,
+        "zone_type": zone_type,
+        "predicted_value": round(float(predicted_value), 2)
     }
-
