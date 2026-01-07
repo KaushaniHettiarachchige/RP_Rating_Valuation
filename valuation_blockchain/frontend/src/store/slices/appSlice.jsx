@@ -1,24 +1,18 @@
-import { createSlice } from '@reduxjs/toolkit'
+import { createSlice } from "@reduxjs/toolkit";
 
 const initialState = {
-  isLoggedIn: false,
-  user: null,
-}
+  activeStep: 0,
+};
 
 const appSlice = createSlice({
-  name: 'app',
+  name: "app",
   initialState,
   reducers: {
-    login: (state, action) => {
-      state.isLoggedIn = true
-      state.user = action.payload
-    },
-    logout: (state) => {
-      state.isLoggedIn = false
-      state.user = null
+    setActiveStep: (state, action) => {
+      state.activeStep = action.payload;
     },
   },
-})
+});
 
-export const { login, logout } = appSlice.actions
-export default appSlice.reducer
+export const { setActiveStep } = appSlice.actions;
+export default appSlice.reducer;

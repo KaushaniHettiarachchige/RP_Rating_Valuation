@@ -5,7 +5,8 @@ import ResidentPortal from "./pages/ResidentPortal";
 import CouncilDashboard from "./pages/CouncilDashboard";
 import Home from "./components/Home";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import TaxPoint from "./components/tax-point/TaxPoint";
+import TaxPoint from "./components/taxPoint/TaxPoint";
+import PropertyValuation from "./components/valuation/PropertyValuation";
 
 function App() {
   return (
@@ -13,7 +14,7 @@ function App() {
       <Header />
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/valuation" element={<Home />} />
+        <Route path="/valuation" element={<PropertyValuation />} />
         <Route path="/tax-point" element={<TaxPoint />} />
       </Routes>
       <Footer />

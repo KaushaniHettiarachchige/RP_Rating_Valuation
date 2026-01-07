@@ -1,9 +1,9 @@
 import { useState } from "react";
 
-const TaxPoint=()=>{
-const [activeTab, setActiveTab] = useState("resident");
-return<Box>
-
+const TaxPoint = () => {
+  const [activeTab, setActiveTab] = useState("resident");
+  return (
+    <Box>
       <div className="w-full py-4">
         {/* Segmented Navigation Control */}
         <div className="flex justify-center mb-4">
@@ -98,9 +98,8 @@ return<Box>
           </div>
         </div>
       </div>
-</Box>
+    </Box>
+  );
+};
 
-
-}
-
-export default TaxPoint
+export default TaxPoint;
