@@ -8,6 +8,7 @@ import {
 } from "@mui/material";
 import { useState } from "react";
 import Map from "../common/Map";
+import { useSelector } from "react-redux";
 
 const LandValuation = () => {
   const [firstName, setFirstName] = useState("");
@@ -30,6 +31,10 @@ const LandValuation = () => {
     };
     console.log(formData);
   };
+
+  const { latitude, longitude } = useSelector((state) => state.app);
+  console.log("🚀 ~ LandValuation ~ longitude:", longitude);
+  console.log("🚀 ~ LandValuation ~ latitude:", latitude);
 
   return (
     <Box

@@ -2,8 +2,8 @@ import { createSlice } from "@reduxjs/toolkit";
 
 const initialState = {
   activeStep: 0,
-  latitute: 0,
-  longtitue: 0,
+  latitude: null,
+  longitude: null,
 };
 
 const appSlice = createSlice({
@@ -14,8 +14,8 @@ const appSlice = createSlice({
       state.activeStep = action.payload;
     },
     setCoordinates: (state, action) => {
-      state.latitute = action.payload.lat;
-      state.longtitue = action.payload.lon;
+      state.latitude = action.payload.lat;
+      state.longitude = action.payload.lon;
     },
   },
 });
