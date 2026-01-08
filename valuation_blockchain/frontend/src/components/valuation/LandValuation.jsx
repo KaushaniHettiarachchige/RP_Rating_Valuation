@@ -245,7 +245,7 @@ const LandValuation = () => {
                   </Typography>
                 </Box>
 
-                <Box
+                {/* <Box
                   sx={{
                     display: "flex",
                     flexDirection: "row",
@@ -259,7 +259,7 @@ const LandValuation = () => {
                     Ditance To Main Road =
                   </Typography>
                   <Typography sx={{ fontWeight: 3500 }}>{data.DTMR}</Typography>
-                </Box>
+                </Box> */}
                 <Box
                   sx={{
                     display: "flex",
@@ -274,7 +274,7 @@ const LandValuation = () => {
                     Final Land Value =
                   </Typography>
                   <Typography sx={{ fontWeight: 3500 }}>
-                    {data.predicted_value}
+                    LKR {data.predicted_value}
                   </Typography>
                 </Box>
               </Box>
