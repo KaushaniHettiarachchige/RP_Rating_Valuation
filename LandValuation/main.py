@@ -7,6 +7,16 @@ app = FastAPI(title="Property Valuation API")
 
 model = joblib.load("models/regression_model.pkl")
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],    
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.post("/estimate")
 def estimate_from_location(lon: float, lat: float, eol: float):
     

@@ -1,6 +1,7 @@
 import {
   Box,
   Button,
+  CircularProgress,
   Divider,
   InputAdornment,
   TextField,
@@ -15,7 +16,7 @@ const LandValuation = () => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [propertyAddress, setPropertyAddress] = useState("");
-  const [landSize, setLandSize] = useState("");
+  const [landSize, setLandSize] = useState(0);
   const { latitude, longitude } = useSelector((state) => state.app);
   const [data, setdata] = useState(null);
   console.log("🚀 ~ LandValuation ~ data:", data);
@@ -23,17 +24,23 @@ const LandValuation = () => {
   const handleCalculate = async (e) => {
     e.preventDefault();
 
-    try {
-      const res = await axios.post("http://127.0.0.1:8000/estimate", {
-        lon: Number(longitude),
-        lat: Number(latitude),
-        eol: Number(landSize),
-      });
+    if (!latitude || !longitude || !landSize) {
+      alert("Please fill all fields");
+      return;
+    }
 
+    try {
+      const res = await axios.post("http://127.0.0.1:8000/estimate", null, {
+        params: {
+          lon: parseFloat(longitude),
+          lat: parseFloat(latitude),
+          eol: parseFloat(landSize),
+        },
+      });
       setdata(res.data);
     } catch (err) {
       console.error(err);
-      alert("Failed to estimate value");
+      alert("Backend rejected request");
     }
   };
 
@@ -188,7 +195,104 @@ const LandValuation = () => {
             Calculate Value
           </Button>
         </Box>
-        <Box sx={{ bgcolor: "red" }}> </Box>
+        <Box sx={{ bgcolor: "#fff", boxShadow: 20, borderRadius: 10, p: 2 }}>
+          {data ? (
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 2,
+              }}
+            >
+              {" "}
+              <Typography
+                component={"span"}
+                sx={{
+                  fontSize: { xs: "30px", md: "1.3rem" },
+
+                  color: "#000",
+                  textAlign: "left",
+                  lineHeight: 1.2,
+                  fontWeight: 700,
+                }}
+              >
+                Land Valuation Data
+              </Typography>
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 2,
+                }}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "flex-start",
+                    gap: 2,
+                  }}
+                >
+                  {" "}
+                  <Typography sx={{ fontWeight: 500 }}>Zone=</Typography>
+                  <Typography sx={{ fontWeight: 3500 }}>
+                    {data.zone_type}
+                  </Typography>
+                </Box>
+
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "flex-start",
+                    gap: 2,
+                  }}
+                >
+                  {" "}
+                  <Typography sx={{ fontWeight: 500 }}>
+                    Ditance To Main Road =
+                  </Typography>
+                  <Typography sx={{ fontWeight: 3500 }}>{data.DTMR}</Typography>
+                </Box>
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "flex-start",
+                    gap: 2,
+                  }}
+                >
+                  {" "}
+                  <Typography sx={{ fontWeight: 500 }}>
+                    Final Land Value =
+                  </Typography>
+                  <Typography sx={{ fontWeight: 3500 }}>
+                    {data.predicted_value}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          ) : (
+            <Box
+              sx={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <CircularProgress size={100} />
+            </Box>
+          )}
+        </Box>
       </Box>
 
       <Box
