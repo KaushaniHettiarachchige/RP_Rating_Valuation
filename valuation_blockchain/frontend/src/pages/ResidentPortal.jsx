@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { ethers } from 'https://esm.sh/ethers@6.11.1';
 import { QRCode } from 'react-qr-code';
-import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../constants/config';
+import axios from 'axios';
+import { CONTRACT_ADDRESS, CONTRACT_ABI, BACKEND_URL } from '../constants/config';
 import Button from '../components/Button';
 import InputField from '../components/InputField';
 import Alert from '../components/Alert';
@@ -18,6 +19,14 @@ const ResidentPortal = () => {
   const [history, setHistory] = useState([]); // Audit Trail History
   const [logs, setLogs] = useState([]); // Live Integrity Log (Terminal)
   const [isSimulating, setIsSimulating] = useState(false); // Track if simulation is running
+  
+  // Payment Gateway States
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState(null); // null, 'processing', 'success'
+  const [isPaid, setIsPaid] = useState(false);
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [cvv, setCvv] = useState("");
 
   const verifyProperty = async () => {
     if (!pId) return;
@@ -28,6 +37,8 @@ const ResidentPortal = () => {
     setHistory([]);
     setIsCorrupted(false);
     setLogs([]); // Clear logs when verifying new property
+    setIsPaid(false); // Reset payment status
+    setPaymentStatus(null);
 
     try {
       // 1. Connect to Blockchain (with ENS disabled for local network)
@@ -47,6 +58,7 @@ const ResidentPortal = () => {
       const fetchedAge = record[3].toString();
       const fetchedOwner = record[4];
       const fetchedHash = record[5];
+      const fetchedIsPaid = record[6]; // New field from smart contract
 
       const data = {
         id: fetchedId,
@@ -54,12 +66,14 @@ const ResidentPortal = () => {
         tax: fetchedTax,
         buildingAge: fetchedAge,
         owner: fetchedOwner,
-        hash: fetchedHash
+        hash: fetchedHash,
+        isPaid: fetchedIsPaid
       };
 
       // Store both original (for verification) and display (for showing)
       setOriginalData(data);
       setDisplayData({...data}); // Clone for display
+      setIsPaid(fetchedIsPaid); // Set payment status from blockchain
 
       // 3. FETCH AUDIT TRAIL (Historical Valuations)
       const filter = contract.filters.ValuationUpdated(pId);
@@ -230,6 +244,88 @@ const ResidentPortal = () => {
     }
   };
 
+  // Payment Gateway Functions
+  const handlePayTax = () => {
+    setShowPaymentModal(true);
+    setCardNumber("");
+    setExpiry("");
+    setCvv("");
+    setPaymentStatus(null);
+  };
+
+  // Real blockchain tax payment (for unpaid taxes)
+  const handleRealTaxPayment = async () => {
+    if (!displayData) return;
+    
+    setPaymentStatus('processing');
+    
+    try {
+      // Call backend to record tax payment on blockchain
+      const response = await axios.post(`${BACKEND_URL}/pay-tax`, {
+        propertyId: displayData.id
+      });
+      
+      if (response.data.success) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setPaymentStatus('success');
+        
+        // Update local state
+        setIsPaid(true);
+        setDisplayData({
+          ...displayData,
+          isPaid: true
+        });
+        if (originalData) {
+          setOriginalData({
+            ...originalData,
+            isPaid: true
+          });
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        setShowPaymentModal(false);
+        setPaymentStatus(null);
+      }
+    } catch (error) {
+      console.error('Payment error:', error);
+      setPaymentStatus('error');
+      setTimeout(() => {
+        setPaymentStatus(null);
+        setShowPaymentModal(false);
+      }, 2000);
+    }
+  };
+
+  // Mock payment gateway (for system integration demo when already verified)
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validate inputs
+    if (!cardNumber || !expiry || !cvv) {
+      return;
+    }
+
+    setPaymentStatus('processing');
+
+    // Simulate payment processing
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    setPaymentStatus('success');
+    
+    // Wait a bit before closing modal
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    setShowPaymentModal(false);
+    setPaymentStatus(null);
+  };
+
+  const closePaymentModal = () => {
+    if (paymentStatus !== 'processing') {
+      setShowPaymentModal(false);
+      setPaymentStatus(null);
+    }
+  };
+
   return (
     <div>
       {/* Header */}
@@ -393,10 +489,53 @@ const ResidentPortal = () => {
                   p-5 rounded-lg border-2 shadow-sm transition-all
                   ${isVerified ? 'bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200' : 'bg-rose-200 border-rose-500 ring-2 ring-rose-500 animate-pulse'}
                 `}>
-                  <p className="text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wide">Annual Tax</p>
-                  <p className="text-2xl font-bold text-emerald-700">
-                    LKR {parseInt(displayData.tax).toLocaleString()}
-                  </p>
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex-1">
+                      <p className="text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wide">Annual Tax</p>
+                      <p className="text-2xl font-bold text-emerald-700">
+                        LKR {parseInt(displayData.tax).toLocaleString()}
+                      </p>
+                      <div className="mt-2">
+                        {isPaid ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-800 text-xs font-bold rounded-full border border-green-300">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            Tax Paid
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full border border-amber-300">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                            </svg>
+                            Tax Unpaid
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {isVerified && isPaid && (
+                      <button
+                        onClick={handlePayTax}
+                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                        Pay Tax Now
+                      </button>
+                    )}
+                    {isVerified && !isPaid && (
+                      <button
+                        onClick={handlePayTax}
+                        className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-700 hover:from-amber-700 hover:to-orange-800 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        Pay Tax
+                      </button>
+                    )}
+                  </div>
                   {!isVerified && (
                     <div className="mt-2 flex items-center gap-1.5 text-rose-800">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -445,7 +584,7 @@ const ResidentPortal = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
                 <h3 className="text-lg font-bold text-white uppercase tracking-wide">
-                  Research Demo: Corruption Detection Test
+                  Corruption Detection Test
                 </h3>
               </div>
             </div>
@@ -459,8 +598,7 @@ const ResidentPortal = () => {
                 <div className="flex-1">
                   <p className="text-slate-700 leading-relaxed mb-4">
                     Click the button below to simulate a malicious database hack. The system will 
-                    immediately detect the tampering through hash verification, demonstrating the 
-                    security of blockchain-based systems.
+                    immediately detect the tampering through hash verification
                   </p>
                   <div className="flex gap-3 flex-wrap">
                     <Button 
@@ -691,12 +829,10 @@ const ResidentPortal = () => {
                       </svg>
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-amber-900 mb-1">Research Significance</p>
+                      <p className="text-sm font-semibold text-amber-900 mb-1"></p>
                       <p className="text-sm text-amber-800 leading-relaxed">
                         This audit trail is permanently recorded on the blockchain and cannot be deleted or modified. 
-                        Any attempt to alter past records would require changing the entire blockchain history, which is 
-                        computationally impossible. This demonstrates the immutability principle of blockchain technology 
-                        in preventing corruption.
+                       
                       </p>
                     </div>
                   </div>
@@ -761,12 +897,10 @@ const ResidentPortal = () => {
                             </svg>
                           </div>
                           <div className="flex-1">
-                            <p className="text-sm font-semibold text-amber-900 mb-1">Commercial Value & Security Feature</p>
+                            <p className="text-sm font-semibold text-amber-900 mb-1"></p>
                             <p className="text-sm text-amber-800 leading-relaxed">
                               This QR code serves as a digital property deed that can be scanned by banks, notaries, 
-                              or property buyers to instantly verify authenticity. If you simulate corruption, 
-                              this QR code will disappear immediately, proving the system only issues digital deeds for 
-                              uncorrupted, blockchain-verified data.
+                              or property buyers to instantly verify authenticity. 
                             </p>
                           </div>
                         </div>
@@ -778,6 +912,197 @@ const ResidentPortal = () => {
             </div>
           )}
         </>
+      )}
+
+      {/* PAYMENT GATEWAY MODAL */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-fadeIn">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-700 to-blue-900 px-6 py-5 border-b-2 border-blue-800">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">GovPay Secure Gateway</h3>
+                    <p className="text-blue-200 text-xs">Test Mode - System Integration Demo</p>
+                  </div>
+                </div>
+                {paymentStatus !== 'processing' && (
+                  <button 
+                    onClick={closePaymentModal}
+                    className="text-white/80 hover:text-white transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6">
+              {paymentStatus === 'success' ? (
+                <div className="text-center py-8">
+                  <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-4">
+                    <svg className="w-12 h-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <h4 className="text-2xl font-bold text-green-700 mb-2">✅ Payment Successful!</h4>
+                  <p className="text-slate-600 mb-3">
+                    {isPaid ? 'Transaction ID: TXN_MOCK_12345' : 'Tax payment recorded on blockchain'}
+                  </p>
+                  <p className="text-sm text-slate-500">Receipt stored on Blockchain</p>
+                </div>
+              ) : paymentStatus === 'error' ? (
+                <div className="text-center py-8">
+                  <div className="inline-flex items-center justify-center w-20 h-20 bg-red-100 rounded-full mb-4">
+                    <svg className="w-12 h-12 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </div>
+                  <h4 className="text-xl font-bold text-red-700 mb-2">Payment Failed</h4>
+                  <p className="text-sm text-slate-600">Please try again</p>
+                </div>
+              ) : paymentStatus === 'processing' ? (
+                <div className="text-center py-8">
+                  <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-4">
+                    <svg className="w-12 h-12 text-blue-600 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+                  <h4 className="text-xl font-bold text-slate-800 mb-2">
+                    {!originalData?.isPaid && !isPaid ? 'Recording payment on blockchain...' : 'Processing with Bank...'}
+                  </h4>
+                  <p className="text-sm text-slate-600">Please wait while we verify your payment</p>
+                </div>
+              ) : (
+                <>
+                  {/* If tax is already paid (verified status), show mock payment gateway */}
+                  {isPaid ? (
+                    <form onSubmit={handlePaymentSubmit} className="space-y-4">
+                      {/* Payment Amount Display */}
+                      <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200 mb-6">
+                        <p className="text-sm text-slate-600 mb-1">Payment Amount</p>
+                        <p className="text-3xl font-bold text-blue-700">
+                          LKR {parseInt(displayData.tax).toLocaleString()}
+                        </p>
+                      </div>
+
+                      {/* Card Number */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">
+                          Card Number
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="1234 5678 9012 3456"
+                          value={cardNumber}
+                          onChange={(e) => setCardNumber(e.target.value)}
+                          maxLength="19"
+                          className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                          required
+                        />
+                      </div>
+
+                      {/* Expiry and CVV */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">
+                            Expiry Date
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="MM/YY"
+                            value={expiry}
+                            onChange={(e) => setExpiry(e.target.value)}
+                            maxLength="5"
+                            className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">
+                            CVV
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="123"
+                            value={cvv}
+                            onChange={(e) => setCvv(e.target.value)}
+                            maxLength="3"
+                            className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      {/* Security Badge */}
+                      <div className="bg-green-50 border border-green-300 rounded-lg p-3 flex items-start gap-2">
+                        <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                        <div>
+                          <p className="text-xs font-semibold text-green-800">Secure Payment</p>
+                          <p className="text-xs text-green-700">Your payment is encrypted and secure</p>
+                        </div>
+                      </div>
+
+                      {/* Submit Button */}
+                      <button
+                        type="submit"
+                        className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Confirm Payment
+                      </button>
+                    </form>
+                  ) : (
+                    /* If tax is unpaid, show simple confirmation for blockchain payment */
+                    <div className="space-y-4">
+                      <div className="bg-amber-50 p-4 rounded-lg border-2 border-amber-200 mb-6">
+                        <p className="text-sm text-amber-900 font-semibold mb-2">Tax Payment Required</p>
+                        <p className="text-3xl font-bold text-amber-700 mb-2">
+                          LKR {parseInt(displayData.tax).toLocaleString()}
+                        </p>
+                        <p className="text-xs text-amber-600">This payment will be recorded on the blockchain</p>
+                      </div>
+
+                      <div className="bg-blue-50 border border-blue-300 rounded-lg p-4 flex items-start gap-2 mb-4">
+                        <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                          <p className="text-sm font-semibold text-blue-900">Blockchain Transaction</p>
+                          <p className="text-xs text-blue-700">Your payment will be permanently recorded and cannot be tampered with</p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleRealTaxPayment}
+                        className="w-full py-3 bg-gradient-to-r from-amber-600 to-orange-700 hover:from-amber-700 hover:to-orange-800 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        Confirm Tax Payment
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -8,19 +8,19 @@ const Header = () => {
           </div>
           <div className="text-center">
             <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
-              Sri Jayewardenepura Kotte Municipal Council
+             Rating Valuation System
             </h1>
             <div className="flex items-center justify-center gap-2 mt-2">
               <div className="h-1 w-12 bg-blue-400 rounded-full"></div>
               <p className="text-blue-200 text-sm font-semibold uppercase tracking-wider">
-                Blockchain-Based Rating Valuation System
+                 Sri Jayewardenepura Kotte Municipal Council
               </p>
               <div className="h-1 w-12 bg-blue-400 rounded-full"></div>
             </div>
           </div>
         </div>
         <p className="text-center text-slate-300 text-sm max-w-3xl mx-auto">
-          Research Prototype: Automated valuation with corruption detection and immutable audit trail
+         
         </p>
       </div>
     </header>

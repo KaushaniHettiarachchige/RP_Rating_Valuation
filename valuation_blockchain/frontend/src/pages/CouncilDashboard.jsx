@@ -18,6 +18,14 @@ const CouncilDashboard = () => {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Property Transfer States
+  const [transferForm, setTransferForm] = useState({
+    propertyId: "",
+    newOwnerNIC: ""
+  });
+  const [transferStatus, setTransferStatus] = useState(null);
+  const [transferLoading, setTransferLoading] = useState(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -25,7 +33,7 @@ const CouncilDashboard = () => {
 
     try {
       // Send data to Backend Automation Engine
-      const response = await axios.post(BACKEND_URL, form);
+      const response = await axios.post(`${BACKEND_URL}/assess-property`, form);
       
       setStatus({
         type: 'success',
@@ -52,6 +60,43 @@ const CouncilDashboard = () => {
       });
     }
     setLoading(false);
+  };
+
+  const handleTransferSubmit = async (e) => {
+    e.preventDefault();
+    setTransferLoading(true);
+    setTransferStatus(null);
+
+    try {
+      const response = await axios.post(`${BACKEND_URL}/transfer-property`, transferForm);
+      
+      setTransferStatus({
+        type: 'success',
+        msg: '✅ Ownership Transferred Successfully!',
+        txHash: response.data.txHash,
+        blockNumber: response.data.blockNumber,
+        propertyId: response.data.propertyId,
+        previousOwner: response.data.previousOwner,
+        newOwner: response.data.newOwner,
+        newOwnerWallet: response.data.newOwnerWallet
+      });
+
+      // Clear form
+      setTransferForm({ propertyId: "", newOwnerNIC: "" });
+    } catch (err) {
+      console.error(err);
+      const errorData = err.response?.data;
+      
+      setTransferStatus({ 
+        type: 'error', 
+        msg: errorData?.requiresPayment 
+          ? "❌ TRANSFER BLOCKED: Tax Arrears Detected!" 
+          : "❌ Transfer Failed",
+        details: errorData?.error || err.message,
+        requiresPayment: errorData?.requiresPayment || false
+      });
+    }
+    setTransferLoading(false);
   };
 
   return (
@@ -407,6 +452,231 @@ const CouncilDashboard = () => {
           )}
         </div>
       )}
+      
+      {/* PROPERTY TRANSFER SECTION */}
+      <div className="mt-12 pt-8 border-t-2 border-slate-200">
+        <div className="mb-8 pb-6 border-b-2 border-slate-100">
+          <div className="flex items-start gap-4 mb-3">
+            <div className="bg-gradient-to-br from-purple-100 to-indigo-100 p-3 rounded-xl">
+              <svg className="w-8 h-8 text-purple-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h2 className="text-3xl font-bold text-slate-900 mb-2">
+                Transfer Property Ownership
+              </h2>
+              <p className="text-slate-600 leading-relaxed">
+                Transfer property title to a new owner. <span className="font-bold text-amber-700">Note:</span> Tax must be paid before transfer can proceed (Transaction Integrity Check).
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={handleTransferSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <InputField
+              label="Property ID"
+              required
+              type="number"
+              placeholder="e.g., 101"
+              value={transferForm.propertyId}
+              onChange={(e) => setTransferForm({...transferForm, propertyId: e.target.value})}
+              helper="Enter the property ID to transfer"
+            />
+
+            <InputField
+              label="New Owner NIC"
+              required
+              placeholder="e.g., 199512345678 or 945671234V"
+              value={transferForm.newOwnerNIC}
+              onChange={(e) => setTransferForm({...transferForm, newOwnerNIC: e.target.value})}
+              helper="National Identity Card of the new owner"
+            />
+          </div>
+
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border-2 border-amber-300 p-5">
+            <div className="flex items-start gap-3">
+              <div className="bg-amber-600 p-2 rounded-lg flex-shrink-0">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-amber-900 mb-1">Transaction Integrity Protection</p>
+                <p className="text-sm text-amber-800 leading-relaxed">
+                  This system prevents property transfers if taxes are unpaid. The blockchain will 
+                  automatically reject the transaction..
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <Button 
+            type="submit"
+            loading={transferLoading}
+            variant="council"
+            className="w-full py-5 text-lg"
+          >
+            <span className="flex items-center justify-center gap-2">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              <span>{transferLoading ? "Processing Transfer..." : "Transfer Property Title"}</span>
+            </span>
+          </Button>
+        </form>
+
+        {/* TRANSFER STATUS DISPLAY */}
+        {transferStatus && (
+          <div className={`
+            mt-8 rounded-xl border-2 overflow-hidden transition-all
+            ${
+              transferStatus.type === 'success' 
+                ? 'border-emerald-400 shadow-lg shadow-emerald-100' 
+                : 'border-rose-400 shadow-lg shadow-rose-100 animate-pulse'
+            }
+          `}>
+            <div className={`
+              px-6 py-4 border-b-2
+              ${transferStatus.type === 'success' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 border-emerald-700' : 'bg-gradient-to-r from-rose-700 to-red-700 border-rose-800'}
+            `}>
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
+                  {transferStatus.type === 'success' ? (
+                    <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-white">
+                    {transferStatus.msg}
+                  </h3>
+                  {transferStatus.details && (
+                    <p className="text-sm text-white/90 mt-1">{transferStatus.details}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {transferStatus.type === 'success' ? (
+              <div className="bg-white p-6">
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-6 rounded-xl border-2 border-emerald-300 mb-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="bg-emerald-600 p-3 rounded-lg">
+                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-emerald-900">Transfer Complete!</h3>
+                      <p className="text-sm text-emerald-700">Property ownership updated on blockchain</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="bg-white p-4 rounded-lg border border-emerald-200">
+                      <p className="text-xs font-semibold text-slate-600 mb-2">Property ID</p>
+                      <p className="text-2xl font-bold text-emerald-700">#{transferStatus.propertyId}</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <p className="text-xs font-semibold text-slate-600 mb-2">Previous Owner</p>
+                        <code className="block text-xs font-mono text-slate-700 break-all">
+                          {transferStatus.previousOwner}
+                        </code>
+                      </div>
+
+                      <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-300">
+                        <p className="text-xs font-semibold text-emerald-800 mb-2">New Owner</p>
+                        <code className="block text-xs font-mono text-emerald-700 break-all">
+                          {transferStatus.newOwner}
+                        </code>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* New Owner Wallet Credentials */}
+                <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-6 rounded-xl border-2 border-purple-300 mb-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="bg-purple-600 p-3 rounded-lg">
+                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-purple-900">New Owner Wallet Generated</h3>
+                      <p className="text-sm text-purple-700">NIC: {transferStatus.newOwnerWallet.nic}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="bg-white p-4 rounded-lg border border-purple-200">
+                      <p className="text-xs font-semibold text-purple-900 mb-2">Wallet Address:</p>
+                      <code className="block bg-purple-900 text-purple-100 px-4 py-3 rounded font-mono text-xs break-all">
+                        {transferStatus.newOwnerWallet.address}
+                      </code>
+                    </div>
+                    
+                    <div className="bg-rose-50 p-4 rounded-lg border-2 border-rose-300">
+                      <p className="text-xs font-semibold text-rose-900 mb-2">🔑 Private Key (Keep Secret!):</p>
+                      <code className="block bg-rose-900 text-rose-100 px-4 py-3 rounded font-mono text-xs break-all">
+                        {transferStatus.newOwnerWallet.privateKey}
+                      </code>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-5 rounded-lg">
+                  <p className="font-semibold text-emerald-400 text-sm mb-2">Transaction Hash:</p>
+                  <code className="block bg-slate-950 text-emerald-400 px-4 py-3 rounded font-mono text-xs break-all border border-slate-700">
+                    {transferStatus.txHash}
+                  </code>
+                  <div className="mt-3 flex items-center gap-2 text-slate-400 text-xs">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    <span>Block: #{transferStatus.blockNumber}</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gradient-to-br from-rose-50 to-red-50 p-6">
+                <Alert type="error">
+                  <div className="space-y-3">
+                    <p className="font-bold text-lg">{transferStatus.details}</p>
+                    {transferStatus.requiresPayment && (
+                      <div className="bg-white p-4 rounded-lg border-2 border-rose-400">
+                        <p className="text-sm font-semibold text-rose-900 mb-2">🛡️ Transaction Integrity Protection Active</p>
+                        <p className="text-sm text-rose-800 leading-relaxed">
+                          The blockchain  has automatically blocked this transfer because the property tax has not been paid. 
+                         
+                        </p>
+                        <div className="mt-3 bg-rose-100 p-3 rounded border border-rose-300">
+                          <p className="text-xs font-bold text-rose-900">Next Steps:</p>
+                          <ol className="text-xs text-rose-800 mt-1 ml-4 list-decimal space-y-1">
+                            <li>Go to Resident Portal</li>
+                            <li>Verify the property (Property ID: {transferForm.propertyId})</li>
+                            <li>Click "Pay Tax" button</li>
+                            <li>Return here and try the transfer again</li>
+                          </ol>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </Alert>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -273,6 +273,187 @@ app.get('/health', (req, res) => {
 });
 
 // =============================================================
+// 6. TAX PAYMENT ENDPOINT
+// =============================================================
+
+app.post('/pay-tax', async (req, res) => {
+    try {
+        console.log("\n============================================");
+        console.log("💳 TAX PAYMENT REQUEST RECEIVED");
+        console.log("============================================");
+        console.log(req.body);
+
+        const { propertyId } = req.body;
+
+        if (!propertyId) {
+            return res.status(400).json({
+                error: "Missing propertyId"
+            });
+        }
+
+        // Connect to contract
+        const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, wallet);
+
+        // Check if property exists and get current status
+        const propertyData = await contract.properties(propertyId);
+        const isRegistered = propertyData[6];
+        const isPaid = propertyData[7];
+
+        if (!isRegistered) {
+            return res.status(404).json({
+                error: "Property not found"
+            });
+        }
+
+        if (isPaid) {
+            return res.status(400).json({
+                error: "Tax already paid for this property"
+            });
+        }
+
+        console.log(`   Processing payment for Property ID: ${propertyId}`);
+
+        // Call payTax function
+        const nonce = await provider.getTransactionCount(wallet.address, 'latest');
+        const tx = await contract.payTax(propertyId, {
+            nonce: nonce,
+            gasLimit: 300000
+        });
+
+        console.log(`   ⏳ Waiting for transaction confirmation...`);
+        const receipt = await tx.wait();
+        console.log(`   ✅ Payment Recorded! Block: ${receipt.blockNumber}`);
+        console.log(`   Transaction Hash: ${receipt.hash}`);
+        console.log("============================================\n");
+
+        res.json({
+            success: true,
+            message: "Tax payment recorded on blockchain",
+            txHash: receipt.hash,
+            blockNumber: receipt.blockNumber,
+            propertyId: propertyId
+        });
+
+    } catch (error) {
+        console.error("\n❌ PAYMENT ERROR:");
+        console.error(error.message);
+        console.error("============================================\n");
+
+        res.status(500).json({
+            error: error.message || "Payment failed",
+            details: error.reason || "Unknown error"
+        });
+    }
+});
+
+// =============================================================
+// 7. PROPERTY TRANSFER ENDPOINT
+// =============================================================
+
+app.post('/transfer-property', async (req, res) => {
+    try {
+        console.log("\n============================================");
+        console.log("🔄 PROPERTY TRANSFER REQUEST RECEIVED");
+        console.log("============================================");
+        console.log(req.body);
+
+        const { propertyId, newOwnerNIC } = req.body;
+
+        if (!propertyId || !newOwnerNIC) {
+            return res.status(400).json({
+                error: "Missing required fields: propertyId and newOwnerNIC"
+            });
+        }
+
+        // Generate new custodial wallet for new owner
+        console.log(`\n👤 GENERATING CUSTODIAL WALLET FOR NEW OWNER...`);
+        console.log(`   New Owner NIC: ${newOwnerNIC}`);
+        const newWallet = ethers.Wallet.createRandom();
+        const newOwnerAddress = newWallet.address;
+        const newPrivateKey = newWallet.privateKey;
+        console.log(`   ✅ Generated Wallet Address: ${newOwnerAddress}`);
+        console.log(`   🔑 Private Key: ${newPrivateKey}`);
+
+        // Connect to contract
+        const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, wallet);
+
+        // Check if property exists and payment status
+        const propertyData = await contract.properties(propertyId);
+        const isRegistered = propertyData[6];
+        const isPaid = propertyData[7];
+        const currentOwner = propertyData[4];
+
+        if (!isRegistered) {
+            return res.status(404).json({
+                error: "Property not found"
+            });
+        }
+
+        console.log(`\n🔍 CHECKING TAX PAYMENT STATUS...`);
+        console.log(`   Property ID: ${propertyId}`);
+        console.log(`   Current Owner: ${currentOwner}`);
+        console.log(`   Payment Status: ${isPaid ? "PAID ✅" : "UNPAID ❌"}`);
+
+        // Attempt transfer (will revert if tax not paid)
+        console.log(`\n⛓️  EXECUTING OWNERSHIP TRANSFER...`);
+        const nonce = await provider.getTransactionCount(wallet.address, 'latest');
+        const tx = await contract.transferOwnership(propertyId, newOwnerAddress, {
+            nonce: nonce,
+            gasLimit: 300000
+        });
+
+        console.log(`   ⏳ Waiting for transaction confirmation...`);
+        const receipt = await tx.wait();
+        console.log(`   ✅ Ownership Transferred Successfully!`);
+        console.log(`   Block: ${receipt.blockNumber}`);
+        console.log(`   Transaction Hash: ${receipt.hash}`);
+        console.log(`   Previous Owner: ${currentOwner}`);
+        console.log(`   New Owner: ${newOwnerAddress}`);
+        console.log("============================================\n");
+
+        res.json({
+            success: true,
+            message: "Ownership transferred successfully",
+            txHash: receipt.hash,
+            blockNumber: receipt.blockNumber,
+            propertyId: propertyId,
+            previousOwner: currentOwner,
+            newOwner: newOwnerAddress,
+            newOwnerWallet: {
+                address: newOwnerAddress,
+                privateKey: newPrivateKey,
+                nic: newOwnerNIC
+            }
+        });
+
+    } catch (error) {
+        console.error("\n❌ TRANSFER ERROR:");
+        console.error(error.message);
+
+        // Check if error is due to unpaid tax
+        if (error.message.includes("Transfer Blocked: Outstanding Tax Payment Required")) {
+            console.error("   REASON: Tax payment is required before transfer");
+            console.error("============================================\n");
+
+            return res.status(400).json({
+                error: "Transfer Blocked: Outstanding Tax Payment Required!",
+                details: "Property tax must be paid before ownership can be transferred",
+                requiresPayment: true
+            });
+        }
+
+        console.error("============================================\n");
+
+        res.status(500).json({
+            error: error.message || "Transfer failed",
+            details: error.reason || "Unknown error"
+        });
+    }
+});
+
+// =============================================================
 // 5. START SERVER
 // =============================================================
 

@@ -2,7 +2,7 @@
 // CONFIGURATION
 // =======================================================
 export const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-export const BACKEND_URL = "http://localhost:3001/assess-property";
+export const BACKEND_URL = "http://localhost:3001";
 
 // =======================================================
 // CONTRACT ABI (Updated with buildingAge parameter)
@@ -12,6 +12,37 @@ export const CONTRACT_ABI = [
         "inputs": [],
         "stateMutability": "nonpayable",
         "type": "constructor"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "propertyId",
+                "type": "uint256"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "previousOwner",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "newOwner",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "timestamp",
+                "type": "uint256"
+            }
+        ],
+        "name": "OwnershipTransferred",
+        "type": "event"
     },
     {
         "anonymous": false,
@@ -36,6 +67,31 @@ export const CONTRACT_ABI = [
             }
         ],
         "name": "PropertyRegistered",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "propertyId",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "payer",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "timestamp",
+                "type": "uint256"
+            }
+        ],
+        "name": "TaxPaid",
         "type": "event"
     },
     {
@@ -120,6 +176,11 @@ export const CONTRACT_ABI = [
                 "internalType": "string",
                 "name": "",
                 "type": "string"
+            },
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
             }
         ],
         "stateMutability": "view",
@@ -136,6 +197,19 @@ export const CONTRACT_ABI = [
             }
         ],
         "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_id",
+                "type": "uint256"
+            }
+        ],
+        "name": "payTax",
+        "outputs": [],
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
@@ -182,6 +256,11 @@ export const CONTRACT_ABI = [
                 "internalType": "bool",
                 "name": "isRegistered",
                 "type": "bool"
+            },
+            {
+                "internalType": "bool",
+                "name": "isPaid",
+                "type": "bool"
             }
         ],
         "stateMutability": "view",
@@ -201,6 +280,24 @@ export const CONTRACT_ABI = [
             }
         ],
         "name": "registerProperty",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_id",
+                "type": "uint256"
+            },
+            {
+                "internalType": "address",
+                "name": "_newOwner",
+                "type": "address"
+            }
+        ],
+        "name": "transferOwnership",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"

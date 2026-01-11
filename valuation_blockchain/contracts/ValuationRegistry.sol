@@ -17,6 +17,7 @@ contract ValuationRegistry {
         address ownerAddress; // Who owns it
         string documentHash; // Digital Signature (SHA-256 of the deed/report)
         bool isRegistered; // To check if property exists
+        bool isPaid; // Tax payment status
     }
 
     // 2. Storage: Mapping Property ID to Property Details
@@ -38,6 +39,13 @@ contract ValuationRegistry {
         uint256 tax,
         uint256 buildingAge,
         string docHash,
+        uint256 timestamp
+    );
+    event TaxPaid(uint256 indexed propertyId, address payer, uint256 timestamp);
+    event OwnershipTransferred(
+        uint256 indexed propertyId,
+        address indexed previousOwner,
+        address indexed newOwner,
         uint256 timestamp
     );
 
@@ -62,8 +70,8 @@ contract ValuationRegistry {
             "Error: Property ID already exists."
         );
 
-        // Initialize with zero value/tax/age
-        properties[_id] = Property(_id, 0, 0, 0, _owner, "", true);
+        // Initialize with zero value/tax/age and isPaid set to false
+        properties[_id] = Property(_id, 0, 0, 0, _owner, "", true, false);
 
         emit PropertyRegistered(_id, _owner, block.timestamp);
     }
@@ -104,7 +112,15 @@ contract ValuationRegistry {
     )
         public
         view
-        returns (uint256, uint256, uint256, uint256, address, string memory)
+        returns (
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            address,
+            string memory,
+            bool
+        )
     {
         require(properties[_id].isRegistered, "Property not found.");
         Property memory p = properties[_id];
@@ -114,7 +130,51 @@ contract ValuationRegistry {
             p.taxAmount,
             p.buildingAge,
             p.ownerAddress,
-            p.documentHash
+            p.documentHash,
+            p.isPaid
+        );
+    }
+
+    // 7. Tax Payment Function
+    function payTax(uint256 _id) public onlyCouncil {
+        require(
+            properties[_id].isRegistered,
+            "Error: Property not registered."
+        );
+        require(
+            !properties[_id].isPaid,
+            "Error: Tax already paid for this property."
+        );
+
+        properties[_id].isPaid = true;
+
+        emit TaxPaid(_id, msg.sender, block.timestamp);
+    }
+
+    // 8. Transfer Ownership Function (with Tax Payment Check)
+    function transferOwnership(
+        uint256 _id,
+        address _newOwner
+    ) public onlyCouncil {
+        require(
+            properties[_id].isRegistered,
+            "Error: Property not registered."
+        );
+        require(
+            properties[_id].isPaid == true,
+            "Transfer Blocked: Outstanding Tax Payment Required!"
+        );
+        require(_newOwner != address(0), "Error: Invalid new owner address.");
+
+        address previousOwner = properties[_id].ownerAddress;
+        properties[_id].ownerAddress = _newOwner;
+        properties[_id].isPaid = false; // Reset for next year's tax
+
+        emit OwnershipTransferred(
+            _id,
+            previousOwner,
+            _newOwner,
+            block.timestamp
         );
     }
 }
