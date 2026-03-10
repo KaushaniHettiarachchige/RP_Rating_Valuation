@@ -9,6 +9,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import TaxPoint from "./components/taxPoint/TaxPoint";
 import PropertyValuation from "./components/valuation/PropertyValuation";
+import BuildingValuation from "./components/valuation/BuildingValuation";
 function App() {
   const { isLoggedIn } = useSelector((state) => state.auth);
 
@@ -26,9 +27,15 @@ function App() {
           element={isLoggedIn ? <TaxPoint /> : <Navigate to="/login" />}
         />
         <Route
-          path="/valuation"
+          path="/valuation/*"
           element={
             isLoggedIn ? <PropertyValuation /> : <Navigate to="/login" />
+          }
+        />
+        <Route
+          path="/valuation/building/*"
+          element={
+            isLoggedIn ? <BuildingValuation /> : <Navigate to="/login" />
           }
         />
       </Routes>

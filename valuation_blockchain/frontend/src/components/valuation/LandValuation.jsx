@@ -24,10 +24,11 @@ import Map from "../common/Map";
 import axios from "axios";
 import { useDispatch, useSelector } from "react-redux";
 import { setActiveStep } from "../../store/slices/appSlice";
+import { setProperty } from "../../store/slices/propertySlice";
 
 const LandValuation = () => {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+
   const [propertyAddress, setPropertyAddress] = useState("");
   const [landSize, setLandSize] = useState("");
   const [coordinates, setCoordinates] = useState({
@@ -87,7 +88,17 @@ const LandValuation = () => {
           },
         },
       );
+
       setData(res.data);
+
+      dispatch(
+        setProperty({
+          latitude: parseFloat(coordinates.lat),
+          longitude: parseFloat(coordinates.lon),
+          estimatedLandValue: res.data.public_estimated_price,
+          owner: ownerName,
+        }),
+      );
     } catch (err) {
       console.error(err.response ? err.response.data : err);
       alert("Backend rejected request");
@@ -114,12 +125,8 @@ const LandValuation = () => {
         <TextField
           label="Owner Name"
           variant="outlined"
-          value={`${firstName} ${lastName}`.trim()}
-          onChange={(e) => {
-            const names = e.target.value.split(" ");
-            setFirstName(names[0] || "");
-            setLastName(names.slice(1).join(" ") || ""); // handles multiple last names
-          }}
+          value={ownerName}
+          onChange={(e) => setOwnerName(e.target.value)}
         />
 
         <TextField

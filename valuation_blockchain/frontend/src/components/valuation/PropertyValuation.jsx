@@ -2,6 +2,8 @@ import { Box, Divider, Step, StepLabel, Stepper } from "@mui/material";
 
 import LandValuation from "./LandValuation";
 import { useSelector } from "react-redux";
+import BuildingValuation from "./BuildingValuation";
+import CouncilDashboard from "../../pages/CouncilDashboard";
 
 const PropertyValuation = () => {
   const steps = ["Land Valuation", "Building Valauation", "Finalize Valuation"];
@@ -64,7 +66,13 @@ const PropertyValuation = () => {
         ))}
       </Stepper>
 
-      {activeStep == 0 ? <LandValuation /> : null}
+      {activeStep == 0 ? (
+        <LandValuation />
+      ) : activeStep == 1 ? (
+        <BuildingValuation />
+      ) : activeStep == 2 ? (
+        <CouncilDashboard />
+      ) : null}
     </Box>
   );
 };
