@@ -7,6 +7,7 @@ import {
   CircularProgress,
   Divider,
   LinearProgress,
+  Stack,
 } from "@mui/material";
 
 import { Grid } from "@mui/material";
@@ -73,7 +74,7 @@ const LandValuation = () => {
 
   const handleCalculate = async (e) => {
     e.preventDefault();
-
+    setLoading(true);
     try {
       const res = await axios.post(
         "http://127.0.0.1:8000/public/estimate",
@@ -99,6 +100,7 @@ const LandValuation = () => {
           owner: ownerName,
         }),
       );
+      setLoading(false);
     } catch (err) {
       console.error(err.response ? err.response.data : err);
       alert("Backend rejected request");
@@ -163,6 +165,7 @@ const LandValuation = () => {
           borderRadius: 2,
           overflow: "hidden",
           boxShadow: 3,
+          maxHeight: "450px",
         }}
       >
         <Map
@@ -183,6 +186,7 @@ const LandValuation = () => {
         sx={{
           width: "25%",
           bgcolor: "#ffffff",
+          height: "fit-content",
           p: 3,
           borderRadius: 4,
           boxShadow: "0px 10px 30px rgba(0, 71, 18, 0.1)",
@@ -193,17 +197,30 @@ const LandValuation = () => {
         }}
       >
         {loading ? (
-          <Box
-            sx={{
-              width: "100%",
-              height: 300,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+          <Stack
+            alignItems="center"
+            justifyContent="center"
+            sx={{ py: 6, minHeight: "200px" }}
+            spacing={2}
           >
-            <CircularProgress sx={{ color: "#2e7d32" }} size={60} />
-          </Box>
+            <CircularProgress
+              sx={{ color: "#2e7d32" }}
+              size={60}
+              thickness={4}
+            />
+            <Box sx={{ textAlign: "center" }}>
+              <Typography variant="h6" color="text.primary" gutterBottom>
+                Valuating Data...
+              </Typography>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ fontStyle: "italic" }}
+              >
+                Scanning pandg area in progress
+              </Typography>
+            </Box>
+          </Stack>
         ) : data ? (
           <>
             <Box

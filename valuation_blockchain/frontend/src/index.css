@@ -549,3 +549,8 @@ button {
 button:hover {
   background-color: #006d39;
 }
+
+.leaflet-container{
+  z-index: 1;
+ 
+}
