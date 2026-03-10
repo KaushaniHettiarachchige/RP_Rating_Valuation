@@ -22,7 +22,8 @@ import AccessibilityNewIcon from "@mui/icons-material/AccessibilityNew";
 
 import Map from "../common/Map";
 import axios from "axios";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { setActiveStep } from "../../store/slices/appSlice";
 
 const LandValuation = () => {
   const [firstName, setFirstName] = useState("");
@@ -35,7 +36,7 @@ const LandValuation = () => {
   });
 
   const [data, setData] = useState(null);
-
+  const dispatch = useDispatch();
   const [loading, setLoading] = useState(false);
   const [markerPos, setMarkerPos] = useState(null);
   const latitude = useSelector((state) => state.app.latitude);
@@ -406,6 +407,9 @@ const LandValuation = () => {
               sx={{ mt: 2 }}
             >
               <Button
+                onClick={() => {
+                  dispatch(setActiveStep(1));
+                }}
                 fullWidth
                 variant="contained"
                 sx={{
