@@ -1,53 +1,106 @@
 import osmnx as ox
 from geopy.distance import geodesic
+from osmnx._errors import InsufficientResponseError
 
-def get_supermarkets(lat, lon):
-    tags = {"shop": "supermarket"}
-    data = ox.features_from_point((lat, lon), tags=tags, dist=3000)
-    return len(data)
-
-def get_schools(lat, lon):
-    tags = {"amenity": "school"}
-    data = ox.features_from_point((lat, lon), tags=tags, dist=5000)
-    return len(data)
+OSM_DATA = None
 
 
-def nearest_distance(lat, lon, tags, radius=10000):
-    
-    features = ox.features_from_point((lat, lon), tags=tags, dist=radius)
-    if features.empty:
+def fetch_all_features(lat, lon):
+    global OSM_DATA
+
+    tags = {
+        "shop": "supermarket",
+        "amenity": ["school", "university", "hospital"],
+        "place": "town",
+        "highway": ["motorway", "primary", "secondary"],
+        "aeroway": "aerodrome",
+        "harbour": True
+    }
+
+    try:
+        print("Fetching all OSM features...")
+        OSM_DATA = ox.features_from_point((lat, lon), tags=tags, dist=25000)
+        print("Total features fetched:", len(OSM_DATA))
+    except InsufficientResponseError:
+        print("OSM fetch failed")
+        OSM_DATA = None
+
+
+def count_features(key, value, name):
+    if OSM_DATA is None:
+        print(name, "data not loaded")
+        return 0
+
+    try:
+        subset = OSM_DATA[OSM_DATA[key] == value]
+        print(name, "count:", len(subset))
+        return len(subset)
+    except:
+        print(name, "count error")
+        return 0
+
+
+def nearest_distance(lat, lon, key, value, name):
+    if OSM_DATA is None:
+        print(name, "data not loaded")
         return None
-    nearest = min(
-        geodesic((lat, lon), (row.geometry.centroid.y, row.geometry.centroid.x)).km
-        for idx, row in features.iterrows()
-    )
-    return nearest
 
-def get_nearest_town_distance(lat, lon):
-    tags = {"place": "town"}
-    return nearest_distance(lat, lon, tags, radius=20000)
+    try:
+        subset = OSM_DATA[OSM_DATA[key] == value]
 
-def get_nearest_expressway(lat, lon):
-    tags = {"highway": "motorway"}
-    return nearest_distance(lat, lon, tags, radius=50000)
+        if subset.empty:
+            print(name, "not found")
+            return None
 
-def get_nearest_mainroad(lat, lon):
-    tags = {"highway": ["primary", "secondary"]}
-    return nearest_distance(lat, lon, tags, radius=20000)
+        nearest = min(
+            geodesic(
+                (lat, lon),
+                (row.geometry.centroid.y, row.geometry.centroid.x)
+            ).km
+            for _, row in subset.iterrows()
+        )
 
-def get_universities_count(lat, lon):
-    tags = {"amenity": "university"}
-    data = ox.features_from_point((lat, lon), tags=tags, dist=20000)
-    return len(data)
+        print(name, "nearest distance:", round(nearest, 2), "km")
+        return nearest
 
-def get_nearest_airport(lat, lon):
-    tags = {"aeroway": "aerodrome"}
-    return nearest_distance(lat, lon, tags, radius=50000)
+    except Exception as e:
+        print(name, "error:", e)
+        return None
 
-def get_nearest_harbor(lat, lon):
-    tags = {"harbour": True}
-    return nearest_distance(lat, lon, tags, radius=50000)
+
+# -------- Feature Functions --------
+
+def get_supermarkets():
+    return count_features("shop", "supermarket", "Supermarkets")
+
+
+def get_schools():
+    return count_features("amenity", "school", "Schools")
+
+
+def get_universities_count():
+    return count_features("amenity", "university", "Universities")
+
 
 def get_nearest_hospital(lat, lon):
-    tags = {"amenity": "hospital"}
-    return nearest_distance(lat, lon, tags, radius=15000)
+    return nearest_distance(lat, lon, "amenity", "hospital", "Hospital")
+
+
+def get_nearest_town_distance(lat, lon):
+    return nearest_distance(lat, lon, "place", "town", "Town")
+
+
+def get_nearest_expressway(lat, lon):
+    return nearest_distance(lat, lon, "highway", "motorway", "Expressway")
+
+
+def get_nearest_mainroad(lat, lon):
+    return nearest_distance(lat, lon, "highway", "primary", "Main Road")
+
+
+def get_nearest_airport(lat, lon):
+    return nearest_distance(lat, lon, "aeroway", "aerodrome", "Airport")
+
+
+def get_nearest_harbor(lat, lon):
+    return nearest_distance(lat, lon, "harbour", True, "Harbor")

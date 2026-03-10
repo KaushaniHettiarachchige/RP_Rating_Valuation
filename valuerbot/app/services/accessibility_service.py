@@ -1,4 +1,5 @@
 from .facility_service import (
+    fetch_all_features,
     get_supermarkets,
     get_schools,
     get_nearest_hospital,
@@ -12,12 +13,15 @@ from .facility_service import (
 
 def accessibility_score(lat, lon):
 
-    # facility counts
-    supermarkets = get_supermarkets(lat, lon)
-    schools = get_schools(lat, lon)
-    universities = get_universities_count(lat, lon)
+    # 🔹 Fetch OSM features once
+    fetch_all_features(lat, lon)
 
-    # distances (km)
+    # facility counts (no coordinates needed)
+    supermarkets = get_supermarkets()
+    schools = get_schools()
+    universities = get_universities_count()
+
+    # distances (still need lat, lon)
     hospital_dist = get_nearest_hospital(lat, lon)
     town_dist = get_nearest_town_distance(lat, lon)
     expressway_dist = get_nearest_expressway(lat, lon)

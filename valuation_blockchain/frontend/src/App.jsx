@@ -1,26 +1,38 @@
 import "./App.css";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import Home from "./components/Home";
+import Login from "./pages/Login";
 import ResidentPortal from "./pages/ResidentPortal";
 import CouncilDashboard from "./pages/CouncilDashboard";
-import Home from "./components/Home";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
-
-import PropertyValuation from "./components/valuation/PropertyValuation";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 import TaxPoint from "./components/taxPoint/TaxPoint";
-
+import PropertyValuation from "./components/valuation/PropertyValuation";
 function App() {
+  const { isLoggedIn } = useSelector((state) => state.auth);
+
   return (
     <BrowserRouter>
-      <Header />
-
+      {isLoggedIn && <Header />} {/* show header only when logged in */}
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/valuation" element={<PropertyValuation />} />
-        <Route path="/tax-point" element={<TaxPoint />} />
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/"
+          element={isLoggedIn ? <Home /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/tax-point"
+          element={isLoggedIn ? <TaxPoint /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/valuation"
+          element={
+            isLoggedIn ? <PropertyValuation /> : <Navigate to="/login" />
+          }
+        />
       </Routes>
-
-      <Footer />
+      {isLoggedIn && <Footer />}
     </BrowserRouter>
   );
 }

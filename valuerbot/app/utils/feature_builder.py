@@ -1,5 +1,6 @@
 from app.services.accessibility_service import accessibility_score
 from app.services.facility_service import (
+    fetch_all_features,
     get_supermarkets,
     get_schools,
     get_nearest_hospital,
@@ -13,16 +14,20 @@ from app.services.facility_service import (
 
 def build_features(lat, lon, land_size):
 
-    supermarkets = get_supermarkets(lat, lon)
-    schools = get_schools(lat, lon)
+   
+    fetch_all_features(lat, lon)
+
+    supermarkets = get_supermarkets()
+    schools = get_schools()
     hospital_dist = get_nearest_hospital(lat, lon)
 
     town_dist = get_nearest_town_distance(lat, lon)
     expressway_dist = get_nearest_expressway(lat, lon)
     mainroad_dist = get_nearest_mainroad(lat, lon)
-    universities = get_universities_count(lat, lon)
+    universities = get_universities_count()
     airport_dist = get_nearest_airport(lat, lon)
     harbor_dist = get_nearest_harbor(lat, lon)
+
 
     access = accessibility_score(lat, lon)
 
