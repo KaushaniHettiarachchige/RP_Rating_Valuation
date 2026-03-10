@@ -15,7 +15,7 @@ def estimate_public(data: PropertyInput):
         data.land_size
     )
 
-    # price = predict_public(features)
+    price = predict_public(features)
 
-    return {"features": features}
+    return {"public_estimated_price": price,"features": features}
     
