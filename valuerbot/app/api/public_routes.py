@@ -17,4 +17,5 @@ def estimate_public(data: PropertyInput):
 
     price = predict_public(features)
 
-    return {"public_estimated_price": price}
+    return {"public_estimated_price": price,"features": features}
+    
