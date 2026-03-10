@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { ethers } from 'https://esm.sh/ethers@6.11.1';
 import { QRCode } from 'react-qr-code';
 import axios from 'axios';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { CONTRACT_ADDRESS, CONTRACT_ABI, BACKEND_URL } from '../constants/config';
 import Button from '../components/Button';
 import InputField from '../components/InputField';
@@ -17,6 +19,8 @@ const ResidentPortal = () => {
   const [loading, setLoading] = useState(false);
   const [isCorrupted, setIsCorrupted] = useState(false); // Track if data has been tampered
   const [history, setHistory] = useState([]); // Audit Trail History
+  const [timelineEvents, setTimelineEvents] = useState([]); // Full Immutable Event Timeline
+  const [activeTab, setActiveTab] = useState('details'); // 'details' | 'history'
   const [logs, setLogs] = useState([]); // Live Integrity Log (Terminal)
   const [isSimulating, setIsSimulating] = useState(false); // Track if simulation is running
   
@@ -24,9 +28,15 @@ const ResidentPortal = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState(null); // null, 'processing', 'success'
   const [isPaid, setIsPaid] = useState(false);
+  const [cardholderName, setCardholderName] = useState("");
   const [cardNumber, setCardNumber] = useState("");
   const [expiry, setExpiry] = useState("");
   const [cvv, setCvv] = useState("");
+  const [paymentSuccessMsg, setPaymentSuccessMsg] = useState("");
+  const [paymentTxHash, setPaymentTxHash] = useState("");
+  const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
+
+  const deedRef = useRef(null);
 
   const verifyProperty = async () => {
     if (!pId) return;
@@ -35,18 +45,18 @@ const ResidentPortal = () => {
     setOriginalData(null);
     setDisplayData(null);
     setHistory([]);
+    setTimelineEvents([]);
+    setActiveTab('details');
     setIsCorrupted(false);
     setLogs([]); // Clear logs when verifying new property
     setIsPaid(false); // Reset payment status
     setPaymentStatus(null);
+    setPaymentSuccessMsg("");
+    setPaymentTxHash("");
 
     try {
       // 1. Connect to Blockchain (with ENS disabled for local network)
-      const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545", {
-        chainId: 31337,
-        name: "localhost",
-        ensAddress: null // Disable ENS for local Hardhat network
-      });
+      const provider = new ethers.JsonRpcProvider("https://ethereum-sepolia-rpc.publicnode.com");
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
 
       // 2. Fetch Current Data from Blockchain
@@ -76,8 +86,9 @@ const ResidentPortal = () => {
       setIsPaid(fetchedIsPaid); // Set payment status from blockchain
 
       // 3. FETCH AUDIT TRAIL (Historical Valuations)
+      const START_BLOCK = 10407390;
       const filter = contract.filters.ValuationUpdated(pId);
-      const events = await contract.queryFilter(filter);
+      const events = await contract.queryFilter(filter, START_BLOCK, "latest");
       
       const auditTrail = events.map((event, index) => ({
         id: index + 1,
@@ -89,6 +100,59 @@ const ResidentPortal = () => {
       })).reverse(); // Most recent first
       
       setHistory(auditTrail);
+
+      // 4. FETCH FULL IMMUTABLE HISTORY TIMELINE (All event types)
+      const formatTimestamp = (ts) => {
+        try {
+          const date = new Date(Number(ts) * 1000);
+          return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+            + ' at ' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        } catch { return 'Date Unavailable'; }
+      };
+
+      const [taxPaidEvents, ownershipEvents, registrationEvents] = await Promise.all([
+        contract.queryFilter(contract.filters.TaxPaid(pId), START_BLOCK, "latest"),
+        contract.queryFilter(contract.filters.OwnershipTransferred(pId), START_BLOCK, "latest"),
+        contract.queryFilter(contract.filters.PropertyRegistered(pId), START_BLOCK, "latest"),
+      ]);
+
+      const allTimeline = [
+        ...registrationEvents.map(e => ({
+          type: 'PropertyRegistered',
+          blockNumber: e.blockNumber,
+          txHash: e.transactionHash,
+          timestamp: formatTimestamp(e.args.timestamp),
+          details: { owner: e.args.owner },
+        })),
+        ...events.map(e => ({
+          type: 'ValuationUpdated',
+          blockNumber: e.blockNumber,
+          txHash: e.transactionHash,
+          timestamp: formatTimestamp(e.args.timestamp),
+          details: {
+            value: e.args.value.toString(),
+            tax: e.args.tax.toString(),
+            buildingAge: e.args.buildingAge?.toString() ?? 'N/A',
+            docHash: e.args.docHash,
+          },
+        })),
+        ...taxPaidEvents.map(e => ({
+          type: 'TaxPaid',
+          blockNumber: e.blockNumber,
+          txHash: e.transactionHash,
+          timestamp: formatTimestamp(e.args.timestamp),
+          details: { payer: e.args.payer },
+        })),
+        ...ownershipEvents.map(e => ({
+          type: 'OwnershipTransferred',
+          blockNumber: e.blockNumber,
+          txHash: e.transactionHash,
+          timestamp: formatTimestamp(e.args.timestamp),
+          details: { from: e.args.previousOwner, to: e.args.newOwner },
+        })),
+      ].sort((a, b) => b.blockNumber - a.blockNumber);
+
+      setTimelineEvents(allTimeline);
 
     } catch (err) {
       console.error(err);
@@ -247,44 +311,46 @@ const ResidentPortal = () => {
   // Payment Gateway Functions
   const handlePayTax = () => {
     setShowPaymentModal(true);
+    setCardholderName("");
     setCardNumber("");
     setExpiry("");
     setCvv("");
     setPaymentStatus(null);
   };
 
-  // Real blockchain tax payment (for unpaid taxes)
-  const handleRealTaxPayment = async () => {
+  // Real blockchain tax payment — called on card form submit
+  const handleRealTaxPayment = async (e) => {
+    e.preventDefault();
     if (!displayData) return;
-    
+
     setPaymentStatus('processing');
-    
+
     try {
-      // Call backend to record tax payment on blockchain
       const response = await axios.post(`${BACKEND_URL}/pay-tax`, {
         propertyId: displayData.id
       });
-      
+
       if (response.data.success) {
+        const txHash =
+          response.data.txHash ||
+          response.data.transactionHash ||
+          `TXN_${Date.now()}`;
+
+        setPaymentTxHash(txHash);
         await new Promise(resolve => setTimeout(resolve, 1000));
         setPaymentStatus('success');
-        
-        // Update local state
+
+        // Update local state so Pay Tax button disappears
         setIsPaid(true);
-        setDisplayData({
-          ...displayData,
-          isPaid: true
-        });
+        setDisplayData({ ...displayData, isPaid: true });
         if (originalData) {
-          setOriginalData({
-            ...originalData,
-            isPaid: true
-          });
+          setOriginalData({ ...originalData, isPaid: true });
         }
-        
+
         await new Promise(resolve => setTimeout(resolve, 1500));
         setShowPaymentModal(false);
         setPaymentStatus(null);
+        setPaymentSuccessMsg(`Tax Paid Successfully! TxHash: ${txHash}`);
       }
     } catch (error) {
       console.error('Payment error:', error);
@@ -296,33 +362,137 @@ const ResidentPortal = () => {
     }
   };
 
-  // Mock payment gateway (for system integration demo when already verified)
-  const handlePaymentSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Validate inputs
-    if (!cardNumber || !expiry || !cvv) {
-      return;
-    }
 
-    setPaymentStatus('processing');
-
-    // Simulate payment processing
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    setPaymentStatus('success');
-    
-    // Wait a bit before closing modal
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    setShowPaymentModal(false);
-    setPaymentStatus(null);
-  };
 
   const closePaymentModal = () => {
     if (paymentStatus !== 'processing') {
       setShowPaymentModal(false);
       setPaymentStatus(null);
+    }
+  };
+
+  const downloadDeedPDF = async () => {
+    if (!deedRef.current || !displayData) return;
+    setIsDownloadingPDF(true);
+    try {
+      const canvas = await html2canvas(deedRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 14;
+
+      // ── Dark teal header bar ──
+      pdf.setFillColor(4, 47, 46);
+      pdf.rect(0, 0, pageWidth, 32, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(17);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('OFFICIAL DIGITAL PROPERTY DEED', pageWidth / 2, 13, { align: 'center' });
+      pdf.setFontSize(8.5);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Blockchain-Verified  •  Municipal Valuation Authority', pageWidth / 2, 22, { align: 'center' });
+
+      // ── Light teal meta strip ──
+      pdf.setFillColor(240, 253, 250);
+      pdf.rect(0, 32, pageWidth, 16, 'F');
+      pdf.setDrawColor(167, 243, 208);
+      pdf.setLineWidth(0.3);
+      pdf.line(0, 32, pageWidth, 32);
+      pdf.line(0, 48, pageWidth, 48);
+      pdf.setTextColor(5, 78, 72);
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`Property ID: #${displayData.id}`, margin, 42);
+      pdf.text(
+        `Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
+        pageWidth - margin, 42,
+        { align: 'right' }
+      );
+
+      // ── Deed screenshot ──
+      const imgWidth = pageWidth - margin * 2;
+      const rawImgHeight = (canvas.height * imgWidth) / canvas.width;
+      const maxImgHeight = pageHeight - 55 - 22; // top offset + footer
+      const imgHeight = Math.min(rawImgHeight, maxImgHeight);
+      pdf.addImage(imgData, 'PNG', margin, 55, imgWidth, imgHeight);
+
+      // ── Footer ──
+      const footerY = pageHeight - 16;
+      pdf.setFillColor(241, 245, 249);
+      pdf.rect(0, footerY - 5, pageWidth, 21, 'F');
+      pdf.setDrawColor(203, 213, 225);
+      pdf.setLineWidth(0.3);
+      pdf.line(0, footerY - 5, pageWidth, footerY - 5);
+      pdf.setTextColor(100, 116, 139);
+      pdf.setFontSize(6.5);
+      pdf.setFont('helvetica', 'italic');
+      pdf.text(
+        'This document is a blockchain-verified digital property deed. Verify authenticity using the embedded QR code.',
+        pageWidth / 2, footerY + 1, { align: 'center' }
+      );
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(
+        `Integrity Hash: ${originalData.hash.substring(0, 48)}...`,
+        pageWidth / 2, footerY + 7, { align: 'center' }
+      );
+
+      pdf.save(`Property_${displayData.id}_Official_Deed.pdf`);
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+    } finally {
+      setIsDownloadingPDF(false);
+    }
+  };
+
+  const getEventConfig = (type) => {
+    switch (type) {
+      case 'PropertyRegistered':
+        return {
+          icon: '🏠', title: 'Property Registered',
+          dotColor: 'bg-blue-600', ringColor: 'ring-blue-200',
+          headerBg: 'bg-blue-50', headerBorder: 'border-blue-200',
+          cardBorder: 'border-blue-300', textColor: 'text-blue-800',
+          badge: 'bg-blue-100 text-blue-800 border-blue-300',
+        };
+      case 'ValuationUpdated':
+        return {
+          icon: '📝', title: 'Valuation Updated',
+          dotColor: 'bg-violet-600', ringColor: 'ring-violet-200',
+          headerBg: 'bg-violet-50', headerBorder: 'border-violet-200',
+          cardBorder: 'border-violet-300', textColor: 'text-violet-800',
+          badge: 'bg-violet-100 text-violet-800 border-violet-300',
+        };
+      case 'TaxPaid':
+        return {
+          icon: '💳', title: 'Tax Payment Recorded',
+          dotColor: 'bg-emerald-600', ringColor: 'ring-emerald-200',
+          headerBg: 'bg-emerald-50', headerBorder: 'border-emerald-200',
+          cardBorder: 'border-emerald-300', textColor: 'text-emerald-800',
+          badge: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+        };
+      case 'OwnershipTransferred':
+        return {
+          icon: '🔄', title: 'Ownership Transferred',
+          dotColor: 'bg-orange-500', ringColor: 'ring-orange-200',
+          headerBg: 'bg-orange-50', headerBorder: 'border-orange-200',
+          cardBorder: 'border-orange-300', textColor: 'text-orange-800',
+          badge: 'bg-orange-100 text-orange-800 border-orange-300',
+        };
+      default:
+        return {
+          icon: '📋', title: type,
+          dotColor: 'bg-slate-500', ringColor: 'ring-slate-200',
+          headerBg: 'bg-slate-50', headerBorder: 'border-slate-200',
+          cardBorder: 'border-slate-300', textColor: 'text-slate-700',
+          badge: 'bg-slate-100 text-slate-700 border-slate-300',
+        };
     }
   };
 
@@ -378,6 +548,13 @@ const ResidentPortal = () => {
       {error && (
         <Alert type="error">
           <p className="font-semibold">{error}</p>
+        </Alert>
+      )}
+
+      {paymentSuccessMsg && (
+        <Alert type="success">
+          <p className="font-semibold">✅ {paymentSuccessMsg}</p>
+          <p className="text-xs mt-1 font-mono opacity-80 break-all">{paymentTxHash}</p>
         </Alert>
       )}
 
@@ -442,6 +619,46 @@ const ResidentPortal = () => {
             )}
           </div>
 
+          {/* ── TAB NAVIGATION ─────────────────────────────────────────── */}
+          <div className="flex gap-1.5 mb-8 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
+            <button
+              onClick={() => setActiveTab('details')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
+                activeTab === 'details'
+                  ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              Property Details
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
+                activeTab === 'history'
+                  ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Immutable History
+              {timelineEvents.length > 0 && (
+                <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                  activeTab === 'history' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {timelineEvents.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* ── DETAILS TAB ─────────────────────────────────────────────── */}
+          {activeTab === 'details' && (
+          <>
           {/* PROPERTY DETAILS CARD */}
           <div className={`
             rounded-xl border-2 mb-8 transition-all duration-300 overflow-hidden shadow-lg
@@ -513,17 +730,7 @@ const ResidentPortal = () => {
                         )}
                       </div>
                     </div>
-                    {isVerified && isPaid && (
-                      <button
-                        onClick={handlePayTax}
-                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                        </svg>
-                        Pay Tax Now
-                      </button>
-                    )}
+
                     {isVerified && !isPaid && (
                       <button
                         onClick={handlePayTax}
@@ -844,7 +1051,7 @@ const ResidentPortal = () => {
           {/* QR CODE VERIFICATION SECTION - Only shown when data is verified */}
           {isVerified && (
             <div className="mt-8">
-              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border-2 border-emerald-400 overflow-hidden shadow-xl">
+              <div ref={deedRef} className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border-2 border-emerald-400 overflow-hidden shadow-xl">
                 <div className="bg-gradient-to-r from-emerald-700 to-teal-700 px-6 py-4 border-b-2 border-emerald-800">
                   <div className="flex items-center gap-3">
                     <div className="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
@@ -909,6 +1116,230 @@ const ResidentPortal = () => {
                   </div>
                 </div>
               </div>
+
+              {/* ── Download PDF Button ── */}
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={downloadDeedPDF}
+                  disabled={isDownloadingPDF}
+                  className="inline-flex items-center gap-2.5 px-6 py-3 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-800 hover:to-teal-800 disabled:from-emerald-400 disabled:to-teal-400 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 text-sm"
+                >
+                  {isDownloadingPDF ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Generating PDF...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download Official Deed (PDF)
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+          </>
+          )}
+
+          {/* ── HISTORY TIMELINE TAB ────────────────────────────────────── */}
+          {activeTab === 'history' && (
+            <div>
+              {/* Header */}
+              <div className="flex items-center justify-between flex-wrap gap-4 mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="bg-gradient-to-br from-indigo-100 to-purple-100 p-3 rounded-2xl shadow-sm">
+                    <svg className="w-7 h-7 text-indigo-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-slate-900">Immutable Audit Trail</h3>
+                    <p className="text-slate-500 text-sm mt-0.5">
+                      Every on-chain event sealed permanently • Tamper-proof • Cannot be deleted
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-2.5 rounded-2xl text-sm font-bold shadow-md">
+                  {timelineEvents.length} {timelineEvents.length === 1 ? 'Event' : 'Events'} Found
+                </div>
+              </div>
+
+              {timelineEvents.length === 0 ? (
+                <div className="text-center py-16 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300">
+                  <svg className="w-14 h-14 mx-auto text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="font-semibold text-slate-400">No historical events found for this property.</p>
+                </div>
+              ) : (
+                <div className="relative">
+                  {/* Vertical spine */}
+                  <div className="absolute left-[1.65rem] top-5 bottom-12 w-0.5 bg-gradient-to-b from-blue-400 via-violet-400 to-emerald-400 opacity-40 rounded-full" />
+
+                  <div className="space-y-6">
+                    {timelineEvents.map((event, idx) => {
+                      const cfg = getEventConfig(event.type);
+                      return (
+                        <div key={idx} className="relative pl-16">
+                          {/* Timeline dot */}
+                          <div className={`absolute left-3 top-5 w-6 h-6 ${cfg.dotColor} rounded-full ring-4 ${cfg.ringColor} shadow-md flex items-center justify-center z-10`}>
+                            <span className="text-white text-xs font-bold leading-none">{timelineEvents.length - idx}</span>
+                          </div>
+
+                          {/* Event card */}
+                          <div className={`rounded-2xl border-2 ${cfg.cardBorder} bg-white shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200`}>
+                            {/* Card header */}
+                            <div className={`px-5 py-3 ${cfg.headerBg} border-b ${cfg.headerBorder} flex items-center justify-between flex-wrap gap-2`}>
+                              <div className="flex items-center gap-2.5">
+                                <span className="text-2xl leading-none" role="img" aria-label={cfg.title}>{cfg.icon}</span>
+                                <span className={`font-bold text-base ${cfg.textColor}`}>{cfg.title}</span>
+                                {idx === 0 && (
+                                  <span className="px-2.5 py-0.5 bg-white/80 text-slate-700 text-xs font-bold rounded-full border border-slate-300 shadow-sm">
+                                    Latest
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`text-xs px-3 py-1 rounded-full border font-mono font-semibold ${cfg.badge}`}>
+                                Block #{event.blockNumber}
+                              </span>
+                            </div>
+
+                            {/* Card body */}
+                            <div className="p-5">
+                              {/* Timestamp */}
+                              <div className="flex items-center gap-2 text-slate-500 text-sm mb-4">
+                                <svg className="w-4 h-4 flex-shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="font-medium">{event.timestamp}</span>
+                              </div>
+
+                              {/* ── PropertyRegistered details ── */}
+                              {event.type === 'PropertyRegistered' && (
+                                <div className="bg-blue-50 rounded-xl p-4 border border-blue-200 mb-4">
+                                  <p className="text-xs text-blue-600 font-bold mb-2 uppercase tracking-wider">Initial Owner Wallet</p>
+                                  <p className="font-mono text-sm text-slate-800 break-all">{event.details.owner}</p>
+                                </div>
+                              )}
+
+                              {/* ── ValuationUpdated details ── */}
+                              {event.type === 'ValuationUpdated' && (
+                                <div className="mb-4">
+                                  <div className="grid grid-cols-3 gap-3 mb-3">
+                                    <div className="bg-violet-50 rounded-xl p-3 border border-violet-200 text-center">
+                                      <p className="text-xs text-violet-600 font-bold mb-1 uppercase tracking-wide">Assessed Value</p>
+                                      <p className="font-bold text-slate-800 text-sm">LKR {parseInt(event.details.value).toLocaleString()}</p>
+                                    </div>
+                                    <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-200 text-center">
+                                      <p className="text-xs text-emerald-600 font-bold mb-1 uppercase tracking-wide">Tax Amount</p>
+                                      <p className="font-bold text-slate-800 text-sm">LKR {parseInt(event.details.tax).toLocaleString()}</p>
+                                    </div>
+                                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-center">
+                                      <p className="text-xs text-slate-500 font-bold mb-1 uppercase tracking-wide">Building Age</p>
+                                      <p className="font-bold text-slate-800 text-sm">{event.details.buildingAge} yrs</p>
+                                    </div>
+                                  </div>
+                                  {event.details.docHash && (
+                                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                                      <p className="text-xs text-slate-500 font-bold uppercase tracking-wide mb-1">Document Hash (SHA-256)</p>
+                                      <p className="font-mono text-xs text-slate-700 break-all">{event.details.docHash}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* ── TaxPaid details ── */}
+                              {event.type === 'TaxPaid' && (
+                                <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200 mb-4 flex items-start gap-3">
+                                  <div className="flex-shrink-0 bg-emerald-600 rounded-full p-1.5 mt-0.5">
+                                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-emerald-800 mb-1">Tax obligation fulfilled on blockchain</p>
+                                    <p className="text-xs text-emerald-600 font-semibold mb-1.5 uppercase tracking-wide">Authorized by (Council Wallet):</p>
+                                    <p className="font-mono text-xs text-slate-700 break-all">{event.details.payer}</p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* ── OwnershipTransferred details ── */}
+                              {event.type === 'OwnershipTransferred' && (
+                                <div className="mb-4 space-y-2">
+                                  <div className="bg-orange-50 rounded-xl p-3 border border-orange-200 flex items-center gap-3">
+                                    <span className="bg-orange-500 text-white text-xs font-bold px-2.5 py-1 rounded-lg uppercase tracking-wide flex-shrink-0">From</span>
+                                    <p className="font-mono text-xs text-slate-800 break-all">{event.details.from}</p>
+                                  </div>
+                                  <div className="flex justify-center">
+                                    <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                    </svg>
+                                  </div>
+                                  <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-200 flex items-center gap-3">
+                                    <span className="bg-emerald-600 text-white text-xs font-bold px-2.5 py-1 rounded-lg uppercase tracking-wide flex-shrink-0">To</span>
+                                    <p className="font-mono text-xs text-slate-800 break-all">{event.details.to}</p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* TxHash proof */}
+                              <div className="flex items-start gap-3 bg-slate-900 rounded-xl px-4 py-3">
+                                <svg className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">
+                                    Transaction Hash — Immutability Proof
+                                  </p>
+                                  <code className="text-xs text-cyan-400 font-mono break-all leading-relaxed">
+                                    {event.txHash}
+                                  </code>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Genesis marker */}
+                  <div className="relative pl-16 mt-6">
+                    <div className="absolute left-3 top-2.5 w-6 h-6 bg-slate-400 rounded-full flex items-center justify-center ring-4 ring-slate-100 shadow-sm z-10">
+                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300 px-5 py-3">
+                      <p className="text-xs text-slate-500 font-semibold">⛓ Chain Origin — All records above are cryptographically sealed</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Immutability notice footer */}
+              <div className="mt-8 flex items-start gap-4 bg-amber-50 rounded-2xl border-2 border-amber-300 p-5 shadow-sm">
+                <div className="flex-shrink-0 bg-amber-600 p-2.5 rounded-xl shadow-sm">
+                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-amber-900 mb-1">Tamper-Proof Permanent Record</p>
+                  <p className="text-sm text-amber-800 leading-relaxed">
+                    This audit trail is permanently sealed on the Ethereum blockchain. Each transaction hash is a
+                    cryptographic fingerprint proving the event occurred at that exact block. No authority — including
+                    the Municipal Council — can delete, alter, or reorder any entry in this immutable ledger.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </>
@@ -955,10 +1386,12 @@ const ResidentPortal = () => {
                     </svg>
                   </div>
                   <h4 className="text-2xl font-bold text-green-700 mb-2">✅ Payment Successful!</h4>
-                  <p className="text-slate-600 mb-3">
-                    {isPaid ? 'Transaction ID: TXN_MOCK_12345' : 'Tax payment recorded on blockchain'}
-                  </p>
-                  <p className="text-sm text-slate-500">Receipt stored on Blockchain</p>
+                  <p className="text-slate-600 mb-2">Tax payment recorded on the blockchain.</p>
+                  {paymentTxHash && (
+                    <p className="text-xs font-mono text-slate-500 bg-slate-100 rounded px-3 py-2 break-all">
+                      TxHash: {paymentTxHash}
+                    </p>
+                  )}
                 </div>
               ) : paymentStatus === 'error' ? (
                 <div className="text-center py-8">
@@ -979,126 +1412,125 @@ const ResidentPortal = () => {
                     </svg>
                   </div>
                   <h4 className="text-xl font-bold text-slate-800 mb-2">
-                    {!originalData?.isPaid && !isPaid ? 'Recording payment on blockchain...' : 'Processing with Bank...'}
+                    Recording payment on blockchain...
                   </h4>
                   <p className="text-sm text-slate-600">Please wait while we verify your payment</p>
                 </div>
               ) : (
-                <>
-                  {/* If tax is already paid (verified status), show mock payment gateway */}
-                  {isPaid ? (
-                    <form onSubmit={handlePaymentSubmit} className="space-y-4">
-                      {/* Payment Amount Display */}
-                      <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200 mb-6">
-                        <p className="text-sm text-slate-600 mb-1">Payment Amount</p>
-                        <p className="text-3xl font-bold text-blue-700">
-                          LKR {parseInt(displayData.tax).toLocaleString()}
-                        </p>
-                      </div>
+                /* ── Stripe-style card form — calls real /pay-tax API ── */
+                <form onSubmit={handleRealTaxPayment} className="space-y-4">
 
-                      {/* Card Number */}
+                  {/* Amount banner */}
+                  <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-xl border-2 border-amber-300">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">
-                          Card Number
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="1234 5678 9012 3456"
-                          value={cardNumber}
-                          onChange={(e) => setCardNumber(e.target.value)}
-                          maxLength="19"
-                          className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                          required
-                        />
-                      </div>
-
-                      {/* Expiry and CVV */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-semibold text-slate-700 mb-2">
-                            Expiry Date
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="MM/YY"
-                            value={expiry}
-                            onChange={(e) => setExpiry(e.target.value)}
-                            maxLength="5"
-                            className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-slate-700 mb-2">
-                            CVV
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="123"
-                            value={cvv}
-                            onChange={(e) => setCvv(e.target.value)}
-                            maxLength="3"
-                            className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                            required
-                          />
-                        </div>
-                      </div>
-
-                      {/* Security Badge */}
-                      <div className="bg-green-50 border border-green-300 rounded-lg p-3 flex items-start gap-2">
-                        <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                        </svg>
-                        <div>
-                          <p className="text-xs font-semibold text-green-800">Secure Payment</p>
-                          <p className="text-xs text-green-700">Your payment is encrypted and secure</p>
-                        </div>
-                      </div>
-
-                      {/* Submit Button */}
-                      <button
-                        type="submit"
-                        className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
-                      >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Confirm Payment
-                      </button>
-                    </form>
-                  ) : (
-                    /* If tax is unpaid, show simple confirmation for blockchain payment */
-                    <div className="space-y-4">
-                      <div className="bg-amber-50 p-4 rounded-lg border-2 border-amber-200 mb-6">
-                        <p className="text-sm text-amber-900 font-semibold mb-2">Tax Payment Required</p>
-                        <p className="text-3xl font-bold text-amber-700 mb-2">
-                          LKR {parseInt(displayData.tax).toLocaleString()}
+                        <p className="text-xs text-amber-700 font-bold uppercase tracking-wider mb-1">
+                          Tax Due — Property #{displayData?.id}
                         </p>
-                        <p className="text-xs text-amber-600">This payment will be recorded on the blockchain</p>
+                        <p className="text-3xl font-bold text-amber-800">
+                          LKR {parseInt(displayData?.tax || 0).toLocaleString()}
+                        </p>
                       </div>
-
-                      <div className="bg-blue-50 border border-blue-300 rounded-lg p-4 flex items-start gap-2 mb-4">
-                        <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <div>
-                          <p className="text-sm font-semibold text-blue-900">Blockchain Transaction</p>
-                          <p className="text-xs text-blue-700">Your payment will be permanently recorded and cannot be tampered with</p>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={handleRealTaxPayment}
-                        className="w-full py-3 bg-gradient-to-r from-amber-600 to-orange-700 hover:from-amber-700 hover:to-orange-800 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
-                      >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="bg-amber-100 p-3 rounded-full border border-amber-300">
+                        <svg className="w-8 h-8 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                         </svg>
-                        Confirm Tax Payment
-                      </button>
+                      </div>
                     </div>
-                  )}
-                </>
+                  </div>
+
+                  {/* Cardholder Name */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                      Cardholder Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="John Smith"
+                      value={cardholderName}
+                      onChange={(e) => setCardholderName(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-800 placeholder-slate-400"
+                      required
+                    />
+                  </div>
+
+                  {/* Card Number */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                      Card Number
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="1234 5678 9012 3456"
+                        value={cardNumber}
+                        onChange={(e) => setCardNumber(e.target.value)}
+                        maxLength="19"
+                        className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-800 placeholder-slate-400 pr-16"
+                        required
+                      />
+                      {/* Fake card brand icons */}
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1 pointer-events-none">
+                        <div className="w-8 h-5 bg-red-500 rounded opacity-80"></div>
+                        <div className="w-8 h-5 bg-yellow-400 rounded opacity-80 -ml-3"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expiry + CVV */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                        Expiry Date
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="MM/YY"
+                        value={expiry}
+                        onChange={(e) => setExpiry(e.target.value)}
+                        maxLength="5"
+                        className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-800 placeholder-slate-400"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                        CVV
+                      </label>
+                      <input
+                        type="password"
+                        placeholder="•••"
+                        value={cvv}
+                        onChange={(e) => setCvv(e.target.value)}
+                        maxLength="3"
+                        className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-800"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Security badge */}
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center gap-2.5">
+                    <svg className="w-5 h-5 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    <div>
+                      <p className="text-xs font-bold text-emerald-800">SSL Encrypted & Secure</p>
+                      <p className="text-xs text-emerald-700">Payment recorded on blockchain — tamper-proof</p>
+                    </div>
+                  </div>
+
+                  {/* Confirm Payment button */}
+                  <button
+                    type="submit"
+                    className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2 text-base"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Confirm Payment
+                  </button>
+                </form>
               )}
             </div>
           </div>

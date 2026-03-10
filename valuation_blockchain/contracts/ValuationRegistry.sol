@@ -41,10 +41,15 @@ contract ValuationRegistry {
         string docHash,
         uint256 timestamp
     );
-    event TaxPaid(uint256 indexed propertyId, address payer, uint256 timestamp);
+    event TaxPaid(
+        uint256 indexed propertyId,
+        address indexed payer,
+        uint256 amount,
+        uint256 timestamp
+    );
     event OwnershipTransferred(
         uint256 indexed propertyId,
-        address indexed previousOwner,
+        address indexed oldOwner,
         address indexed newOwner,
         uint256 timestamp
     );
@@ -148,31 +153,40 @@ contract ValuationRegistry {
 
         properties[_id].isPaid = true;
 
-        emit TaxPaid(_id, msg.sender, block.timestamp);
+        emit TaxPaid(
+            _id,
+            msg.sender,
+            properties[_id].taxAmount,
+            block.timestamp
+        );
     }
 
     // 8. Transfer Ownership Function (with Tax Payment Check)
+    // PP2 FEATURE: Land Transfer with Integrity Lock & Audit Trail
     function transferOwnership(
-        uint256 _id,
+        uint256 _propertyId,
         address _newOwner
     ) public onlyCouncil {
         require(
-            properties[_id].isRegistered,
+            properties[_propertyId].isRegistered,
             "Error: Property not registered."
         );
+        // INTEGRITY LOCK: Block transfer if taxes are unpaid
         require(
-            properties[_id].isPaid == true,
-            "Transfer Blocked: Outstanding Tax Payment Required!"
+            properties[_propertyId].isPaid == true,
+            "Transfer Blocked: Outstanding Tax!"
         );
         require(_newOwner != address(0), "Error: Invalid new owner address.");
 
-        address previousOwner = properties[_id].ownerAddress;
-        properties[_id].ownerAddress = _newOwner;
-        properties[_id].isPaid = false; // Reset for next year's tax
+        address oldOwner = properties[_propertyId].ownerAddress;
+        properties[_propertyId].ownerAddress = _newOwner;
+        // STATUS RESET: New owner starts with fresh tax liability
+        properties[_propertyId].isPaid = false;
 
+        // AUDIT TRAIL: Immutable record of every ownership change
         emit OwnershipTransferred(
-            _id,
-            previousOwner,
+            _propertyId,
+            oldOwner,
             _newOwner,
             block.timestamp
         );

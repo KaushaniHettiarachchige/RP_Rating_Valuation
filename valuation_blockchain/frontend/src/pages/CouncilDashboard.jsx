@@ -26,6 +26,12 @@ const CouncilDashboard = () => {
   const [transferStatus, setTransferStatus] = useState(null);
   const [transferLoading, setTransferLoading] = useState(false);
 
+  // AI Legal Title Summary States
+  const [legalSummary, setLegalSummary] = useState(null);
+  const [legalSummaryLoading, setLegalSummaryLoading] = useState(false);
+  const [legalSummaryError, setLegalSummaryError] = useState(null);
+  const [legalSummaryWarning, setLegalSummaryWarning] = useState(null);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -45,8 +51,7 @@ const CouncilDashboard = () => {
         tax: response.data.tax,
         methodology: response.data.methodology,
         algorithm: response.data.algorithm,
-        walletAddress: response.data.walletAddress,
-        privateKey: response.data.privateKey
+        walletAddress: response.data.walletAddress
       });
 
       // Clear form
@@ -66,6 +71,9 @@ const CouncilDashboard = () => {
     e.preventDefault();
     setTransferLoading(true);
     setTransferStatus(null);
+    setLegalSummary(null);
+    setLegalSummaryError(null);
+    setLegalSummaryWarning(null);
 
     try {
       const response = await axios.post(`${BACKEND_URL}/transfer-property`, transferForm);
@@ -83,6 +91,33 @@ const CouncilDashboard = () => {
 
       // Clear form
       setTransferForm({ propertyId: "", newOwnerNIC: "" });
+
+      // --- AI Legal Title Summary (non-blocking) ---
+      setLegalSummaryLoading(true);
+      try {
+        const summaryPayload = {
+          propertyId: response.data.propertyId,
+          oldOwner: response.data.previousOwner,
+          newOwner: response.data.newOwner,
+          // propertyValue not returned by transfer endpoint; use placeholder
+          propertyValue: "N/A",
+          transferDate: new Date().toLocaleDateString('en-LK', {
+            year: 'numeric', month: 'long', day: 'numeric'
+          })
+        };
+        const summaryRes = await axios.post(`${BACKEND_URL}/api/generate-title-summary`, summaryPayload);
+        setLegalSummary(summaryRes.data.summary);
+        if (summaryRes.data.warning) {
+          setLegalSummaryWarning(summaryRes.data.warning);
+        }
+      } catch (summaryErr) {
+        console.error('Legal summary generation failed:', summaryErr);
+        setLegalSummaryError(
+          summaryErr.response?.data?.error || 'AI summary service unavailable. Please check the GEMINI_API_KEY.'
+        );
+      } finally {
+        setLegalSummaryLoading(false);
+      }
     } catch (err) {
       console.error(err);
       const errorData = err.response?.data;
@@ -296,24 +331,17 @@ const CouncilDashboard = () => {
                     <p className="text-xs text-purple-600 mt-2">✅ This address can receive property ownership tokens</p>
                   </div>
                   
-                  <div className="bg-rose-50 p-4 rounded-lg border-2 border-rose-300">
+                  <div className="bg-emerald-50 p-4 rounded-lg border-2 border-emerald-300">
                     <div className="flex items-center gap-2 mb-2">
-                      <svg className="w-5 h-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                      <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <p className="font-semibold text-rose-900 text-sm">🔑 Private Key (KEEP SECRET!):</p>
+                      <p className="font-semibold text-emerald-900 text-sm">🔗 Transaction Hash:</p>
                     </div>
-                    <code className="block bg-rose-900 text-rose-100 px-4 py-3 rounded font-mono text-xs break-all border border-rose-700">
-                      {status.privateKey}
+                    <code className="block bg-emerald-900 text-emerald-100 px-4 py-3 rounded font-mono text-xs break-all border border-emerald-700">
+                      {status.txHash}
                     </code>
-                    <div className="mt-3 bg-white p-3 rounded border border-rose-300">
-                      <p className="text-xs text-rose-800 font-semibold flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                        CRITICAL: Share this private key ONLY with the property owner. Anyone with this key has full control over the wallet.
-                      </p>
-                    </div>
+                    <p className="text-xs text-emerald-700 mt-2">✅ This hash uniquely identifies the blockchain transaction and can be used to verify the record.</p>
                   </div>
                 </div>
               </div>
@@ -644,6 +672,71 @@ const CouncilDashboard = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                     </svg>
                     <span>Block: #{transferStatus.blockNumber}</span>
+                  </div>
+                </div>
+
+                {/* AI Legal Title Summary Panel */}
+                <div className="mt-6 bg-gradient-to-br from-indigo-50 to-violet-50 rounded-xl border-2 border-indigo-300 overflow-hidden">
+                  <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-3 flex items-center gap-3">
+                    <svg className="w-5 h-5 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <div>
+                      <p className="font-bold text-white text-sm">AI-Generated Legal Title Summary</p>
+                      <p className="text-indigo-200 text-xs">Powered by Google Gemini · Municipal Registrar Format</p>
+                    </div>
+                  </div>
+
+                  <div className="p-5">
+                    {legalSummaryLoading && (
+                      <div className="flex items-center gap-3 text-indigo-700">
+                        <svg className="w-5 h-5 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        <span className="text-sm italic">Drafting official legal summary via Gemini AI...</span>
+                      </div>
+                    )}
+
+                    {legalSummary && !legalSummaryLoading && (
+                      <div className="bg-white border border-indigo-200 rounded-lg p-5">
+                        <div className="flex items-start gap-3">
+                          <svg className="w-5 h-5 text-indigo-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                          <p className="text-slate-800 leading-relaxed text-sm italic">
+                            &ldquo;{legalSummary}&rdquo;
+                          </p>
+                        </div>
+                        {legalSummaryWarning ? (
+                          <div className="mt-3 pt-3 border-t border-amber-200 flex items-center gap-2 text-xs text-amber-600">
+                            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <span>{legalSummaryWarning}</span>
+                          </div>
+                        ) : (
+                          <div className="mt-3 pt-3 border-t border-indigo-100 flex items-center gap-2 text-xs text-indigo-500">
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                            </svg>
+                            <span>Generated by Gemini · gemini-2.0-flash-lite · {new Date().toLocaleDateString('en-LK')}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {legalSummaryError && !legalSummaryLoading && (
+                      <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 flex items-start gap-3">
+                        <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <div>
+                          <p className="text-sm font-semibold text-amber-900">Legal Summary Unavailable</p>
+                          <p className="text-xs text-amber-800 mt-1">{legalSummaryError}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
