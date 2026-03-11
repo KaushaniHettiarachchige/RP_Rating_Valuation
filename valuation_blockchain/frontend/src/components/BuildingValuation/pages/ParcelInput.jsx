@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { receiveParcelData } from "../api";
+import { useSelector } from "react-redux";
 
 const ParcelInput = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-
+  const property = useSelector((state) => state.property.property);
   // Form States
   const [parcelId, setParcelId] = useState("");
   const [polygon, setPolygon] = useState(
@@ -27,7 +28,7 @@ const ParcelInput = () => {
   };
 
   useEffect(() => {
-    const idParam = searchParams.get("parcel_id");
+    const idParam = property.propertyId;
     const polyParam = searchParams.get("polygon");
     if (idParam) setParcelId(idParam);
     if (polyParam) setPolygon(polyParam);
@@ -52,10 +53,10 @@ const ParcelInput = () => {
       const payload = {
         parcel_id: parcelId,
         boundary_polygon: parsedPolygon,
-        extent_of_land: 15.5,
+        extent_of_land: property.landSize,
         location_details: { city: "Malabe" },
-        latitude: parsedPolygon[0][0],
-        longitude: parsedPolygon[0][1],
+        latitude: property.latitude,
+        longitude: property.latitude,
       };
 
       const data = await receiveParcelData(payload);

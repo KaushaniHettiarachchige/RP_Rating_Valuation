@@ -17,6 +17,7 @@ const propertySlice = createSlice({
         estimatedLandValue: action.payload.estimatedLandValue,
         estimatedPropertyValue: null,
         owner: action.payload.owner,
+        landSize: action.payload.landSize,
       };
       state.nextPropertyId += 1; // increment for next property
     },

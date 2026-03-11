@@ -52,6 +52,7 @@ const LandValuation = () => {
       );
     }
   }, [markerPos]);
+  const perchToSqft = (perch) => perch * 272.25;
 
   const handleSetCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -98,6 +99,7 @@ const LandValuation = () => {
           longitude: parseFloat(coordinates.lon),
           estimatedLandValue: res.data.public_estimated_price,
           owner: ownerName,
+          landSize: perchToSqft(landSize),
         }),
       );
       setLoading(false);

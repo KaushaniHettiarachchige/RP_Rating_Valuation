@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useSelector } from "react-redux";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const EstimateMeasurements = () => {
   const location = useLocation();
   const navigate = useNavigate();
-
+  const property = useSelector((state) => state.property.property);
   // Load context from Step 4 (Detect Features)
   const navState = location.state || {};
 
@@ -19,6 +20,10 @@ const EstimateMeasurements = () => {
   const [totalLandArea, setTotalLandArea] = useState(
     navState.total_land_area_sqft || 4000.0,
   );
+
+  useEffect(() => {
+    property && setTotalLandArea(property.landSize);
+  }, []);
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
