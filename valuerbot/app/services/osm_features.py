@@ -20,7 +20,7 @@ def fetch_all_features(lat, lon):
             "shop": "supermarket",
             "highway": ["motorway"],
             "railway": "station",
-            
+            "place": ["city", "town",],
             "healthcare": True,
             "landuse": True,
             
@@ -227,6 +227,44 @@ def get_location_zone(lat, lon):
 
     except Exception:
         return "Unknown"
+    
+
+
+
+def get_nearest_town(lat, lon, data):
+    try:
+        if data is None or data.empty:
+            return "Unknown"
+
+        if "place" not in data.columns:
+            return "Unknown"
+
+        places_df = data[data["place"].notna()]
+
+        if places_df.empty:
+            return "Unknown"
+
+        nearest_name = None
+        min_dist = float("inf")
+
+        for _, r in places_df.iterrows():
+            if r.geometry is None:
+                continue
+
+            name = r.get("name")
+            if not valid_name(name):
+                continue
+
+            dist = safe_distance(lat, lon, r.geometry)
+
+            if dist is not None and dist < min_dist:
+                min_dist = dist
+                nearest_name = name
+
+        return nearest_name if nearest_name else "Unknown"
+
+    except Exception:
+        return "Unknown"    
 
 def extract_feature_values(lat, lon, data):
     if data is None:
@@ -236,36 +274,38 @@ def extract_feature_values(lat, lon, data):
 
     schools = safe_filter(data, "amenity", "school")
     features["count_schools"] = count_within(schools, lat, lon, 3)
-    features["min_dist_schools"] = min_distance(schools, lat, lon)
+    features["min_dist_school"] = min_distance(schools, lat, lon)
 
     uni = safe_filter(data, "amenity", "university")
     features["count_uni"] = count_within(uni, lat, lon, 5)
     features["min_dist_uni"] = min_distance(uni, lat, lon)
 
     rail = safe_filter(data, "railway", "station")
-    features["min_dist_railway"] = min_distance(rail, lat, lon)
+    features["min_dist_nearest_railway"] = min_distance(rail, lat, lon)
 
     highway = safe_filter(data, "highway", "motorway")
-    features["min_dist_highway"] = min_distance(highway, lat, lon)
+    features["min_dist_nearest_express"] = min_distance(highway, lat, lon)
 
     banks = safe_filter(data, "amenity", "bank")
-    features["count_banks_2km"] = count_within(banks, lat, lon, 2)
+    features["count_banks_within_2km"] = count_within(banks, lat, lon, 2)
     features["min_dist_nearest_bank"] = min_distance(banks, lat, lon)
 
     markets = safe_filter(data, "shop", "supermarket")
-    features["count_supermarkets_2km"] = count_within(markets, lat, lon, 2)
-    features["min_dist_nearest_supermarket"] = min_distance(markets, lat, lon)
+    features["count_Supermarkets_within2km"] = count_within(markets, lat, lon, 2)
+    features["min_dist_nearest_Supermarket"] = min_distance(markets, lat, lon)
 
     fuel = safe_filter(data, "amenity", "fuel")
-    features["count_fuel_2km"] = count_within(fuel, lat, lon, 2)
-    features["min_dist_nearest_fuel"] = min_distance(fuel, lat, lon)
+    features["count_Fuel_Stations_within2km"] = count_within(fuel, lat, lon, 2)
+    features["min_dist_nearest_Fuel_station"] = min_distance(fuel, lat, lon)
 
     hospitals = safe_filter(data, "amenity", "hospital")
-    features["count_hospitals"] = count_within(hospitals, lat, lon, 5)
-    features["min_dist_hospital"] = min_distance(hospitals, lat, lon)
+    features["count_medical_centers"] = count_within(hospitals, lat, lon, 5)
+    features["min_dist_medical_center"] = min_distance(hospitals, lat, lon)
 
     features["distance_to_fort_km"] = distance_to_fort(lat, lon)
     features["location_zone"] = get_location_zone(lat, lon)
+
+    features["nearest_town"] = get_nearest_town(lat, lon, data)
 
     return features
 
@@ -285,5 +325,6 @@ def extract_places(lat, lon, data):
     places["supermarkets"] = get_places(safe_filter(data, "shop", "supermarket"), lat, lon, 2)
     places["fuel_stations"] = get_places(safe_filter(data, "amenity", "fuel"), lat, lon, 2)
     places["hospitals"] = get_places(safe_filter(data, "amenity", "hospital"), lat, lon, 5)
+    places["nearest_town"] = get_nearest_town(lat, lon, data)
 
     return places
