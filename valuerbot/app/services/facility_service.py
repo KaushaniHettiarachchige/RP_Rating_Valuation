@@ -10,16 +10,15 @@ def fetch_all_features(lat, lon):
 
     tags = {
         "shop": "supermarket",
-        "amenity": ["school", "university", "hospital"],
+        "amenity": ["school", "university", "hospital", "port"],
         "place": "town",
         "highway": ["motorway", "primary", "secondary"],
         "aeroway": "aerodrome",
-        "harbour": True
     }
 
     try:
         print("Fetching all OSM features...")
-        OSM_DATA = ox.features_from_point((lat, lon), tags=tags, dist=25000)
+        OSM_DATA = ox.features_from_point((lat, lon), tags=tags, dist=5000)
         print("Total features fetched:", len(OSM_DATA))
     except InsufficientResponseError:
         print("OSM fetch failed")
@@ -28,16 +27,46 @@ def fetch_all_features(lat, lon):
 
 def count_features(key, value, name):
     if OSM_DATA is None:
-        print(name, "data not loaded")
-        return 0
+        return {"count": 0, "places": []}
 
     try:
+        if key not in OSM_DATA.columns:
+            return {"count": 0, "places": []}
+
         subset = OSM_DATA[OSM_DATA[key] == value]
-        print(name, "count:", len(subset))
-        return len(subset)
-    except:
-        print(name, "count error")
-        return 0
+
+        # ❗ remove unnamed
+        if "name" in subset.columns:
+            subset = subset.dropna(subset=["name"])
+
+        places = []
+
+        for _, row in subset.iterrows():
+            geom = row.geometry
+
+            # handle Point / Polygon
+            if geom.geom_type == "Point":
+                lat = geom.y
+                lon = geom.x
+            else:
+                center = geom.centroid
+                lat = center.y
+                lon = center.x
+
+            places.append({
+                "name": row["name"],
+                "lat": lat,
+                "lon": lon
+            })
+
+        return {
+            "count": len(places),
+            "places": places
+        }
+
+    except Exception as e:
+        print(name, "error:", e)
+        return {"count": 0, "places": []}
 
 
 def nearest_distance(lat, lon, key, value, name):
@@ -46,19 +75,31 @@ def nearest_distance(lat, lon, key, value, name):
         return None
 
     try:
+        if key not in OSM_DATA.columns:
+            print(f"{name}: column '{key}' not found")
+            return None
+
         subset = OSM_DATA[OSM_DATA[key] == value]
 
         if subset.empty:
             print(name, "not found")
             return None
 
-        nearest = min(
-            geodesic(
-                (lat, lon),
-                (row.geometry.centroid.y, row.geometry.centroid.x)
-            ).km
-            for _, row in subset.iterrows()
-        )
+        distances = []
+
+        for _, row in subset.iterrows():
+            geom = row.geometry
+
+            # Handle Point / Polygon safely
+            if geom.geom_type == "Point":
+                point = geom
+            else:
+                point = geom.centroid
+
+            dist = geodesic((lat, lon), (point.y, point.x)).km
+            distances.append(dist)
+
+        nearest = min(distances)
 
         print(name, "nearest distance:", round(nearest, 2), "km")
         return nearest
@@ -103,4 +144,4 @@ def get_nearest_airport(lat, lon):
 
 
 def get_nearest_harbor(lat, lon):
-    return nearest_distance(lat, lon, "harbour", True, "Harbor")
+    return nearest_distance(lat, lon, "amenity", "port", "Harbor")

@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.public_routes import router as public_router
 from app.api.official_routes import router as official_router
+from app.api.find_features import router as find_router
 
 app = FastAPI(title="ValuerBot")
 
@@ -20,3 +21,4 @@ app.add_middleware(
 
 app.include_router(public_router)
 app.include_router(official_router)
+app.include_router(find_router)

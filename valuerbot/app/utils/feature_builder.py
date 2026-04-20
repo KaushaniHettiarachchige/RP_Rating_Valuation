@@ -29,11 +29,11 @@ def build_features(lat, lon, land_size):
     harbor_dist = get_nearest_harbor(lat, lon)
 
 
-    access = accessibility_score(lat, lon)
+    # access = accessibility_score(lat, lon)
 
     features = [
         land_size,
-        access,
+        # access,
         supermarkets,
         schools,
         hospital_dist,
