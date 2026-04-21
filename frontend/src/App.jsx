@@ -33,6 +33,10 @@ function App() {
           }
         />
         <Route
+          path="/val-store"
+          element={isLoggedIn ? <CouncilDashboard /> : <Navigate to="/login" />}
+        />
+        <Route
           path="/valuation/building/*"
           element={
             isLoggedIn ? <BuildingValuation /> : <Navigate to="/login" />

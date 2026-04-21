@@ -6,11 +6,10 @@ from osmnx._errors import InsufficientResponseError
 
 OSM_DATA = None
 
-# Colombo Fort reference
+
 FORT_LOCATION = (6.9344, 79.8428)
 
 
-# ---------------- FETCH DATA ----------------
 def fetch_all_features(lat, lon):
     global OSM_DATA
 
@@ -35,7 +34,7 @@ def fetch_all_features(lat, lon):
         OSM_DATA = None
 
 
-# ---------------- CLEAN JSON ----------------
+
 def clean_json(obj):
     if isinstance(obj, dict):
         return {k: clean_json(v) for k, v in obj.items()}
@@ -50,7 +49,7 @@ def clean_json(obj):
     return obj
 
 
-# ---------------- SAFE DISTANCE ----------------
+
 def safe_distance(lat, lon, geom):
     try:
         if geom is None:
@@ -75,7 +74,6 @@ def distance_to_fort(lat, lon):
         return None
 
 
-# ---------------- FILTER ----------------
 def safe_filter(df, column, value):
     try:
         if df is None or df.empty:
@@ -90,7 +88,7 @@ def safe_filter(df, column, value):
         return None
 
 
-# ---------------- MIN DIST ----------------
+
 def min_distance(df, lat, lon):
     try:
         if df is None or df.empty:
@@ -109,7 +107,7 @@ def min_distance(df, lat, lon):
         return None
 
 
-# ---------------- COUNT ----------------
+
 def count_within(df, lat, lon, km):
     try:
         if df is None or df.empty:
@@ -137,12 +135,12 @@ def count_within(df, lat, lon, km):
         return 0
 
 
-# ---------------- VALID NAME ----------------
+
 def valid_name(name):
     return name and str(name).strip().lower() not in ["nan", "none", ""]
 
 
-# ---------------- PLACE EXTRACTION ----------------
+
 def get_places(df, lat, lon, radius_km):
     try:
         if df is None or df.empty:
@@ -183,51 +181,6 @@ def get_places(df, lat, lon, radius_km):
 
     except Exception:
         return []
-
-# ---------------- ZONE NORMALIZATION ----------------
-def normalize_zone(z):
-    if not z:
-        return "Other"
-
-    z = z.lower()
-
-    if z == "residential":
-        return "Residential"
-    if z in ["commercial", "retail"]:
-        return "Commercial"
-    if z in ["farmland", "farm", "agricultural"]:
-        return "Agricultural"
-    if z == "industrial":
-        return "Industrial"
-
-    return "Other"
-
-
-# ---------------- LOCATION ZONE (IMPORTANT FIX) ----------------
-def get_location_zone(lat, lon):
-    try:
-        if OSM_DATA is None or OSM_DATA.empty:
-            return "Unknown"
-
-        landuse_df = OSM_DATA[OSM_DATA.get("landuse").notna()]
-
-        if landuse_df.empty:
-            return "Other"
-
-        point = ox.geocode_to_gdf(f"{lat}, {lon}").geometry.iloc[0]
-
-        matches = landuse_df[landuse_df.contains(point)]
-
-        if matches.empty:
-            return "Other"
-
-        landuse = matches.iloc[0].get("landuse", "")
-
-        return normalize_zone(str(landuse))
-
-    except Exception:
-        return "Unknown"
-    
 
 
 
@@ -303,9 +256,9 @@ def extract_feature_values(lat, lon, data):
     features["min_dist_medical_center"] = min_distance(hospitals, lat, lon)
 
     features["distance_to_fort_km"] = distance_to_fort(lat, lon)
-    features["location_zone"] = get_location_zone(lat, lon)
 
-    features["nearest_town"] = get_nearest_town(lat, lon, data)
+
+   
 
     return features
 

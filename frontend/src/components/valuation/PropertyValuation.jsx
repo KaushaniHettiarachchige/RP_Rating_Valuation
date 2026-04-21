@@ -68,9 +68,9 @@ const PropertyValuation = () => {
 
       {activeStep == 0 ? (
         <LandValuation />
-      ) : activeStep == 1 ? (
-        <BuildingValuation />
       ) : activeStep == 2 ? (
+        <BuildingValuation />
+      ) : activeStep == 1 ? (
         <CouncilDashboard />
       ) : null}
     </Box>

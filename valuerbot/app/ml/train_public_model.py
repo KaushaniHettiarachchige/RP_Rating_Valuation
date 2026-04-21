@@ -2,16 +2,16 @@ import pandas as pd
 from xgboost import XGBRegressor
 import joblib
 
-# ---------------- LOAD DATA ----------------
+
 data = pd.read_csv("data/land_prices_of_colombo.csv")
 
-# ---------------- CLEAN NUMBERS ----------------
+
 def clean_number(col):
     return col.astype(str).str.replace(",", "").astype(float)
 
 data["Price per Perch"] = clean_number(data["Price per Perch"])
 
-# ---------------- FEATURES ----------------
+
 X = data[[
     
     "Distance from fort",
@@ -31,10 +31,10 @@ X = data[[
     "min_dist_medical_center"
 ]]
 
-# ---------------- TARGET ----------------
+
 y = data["Price per Perch"]
 
-# ---------------- MODEL ----------------
+
 model = XGBRegressor(
     n_estimators=150,
     max_depth=5,
@@ -46,4 +46,4 @@ model.fit(X, y)
 
 joblib.dump(model, "models/public_model.pkl")
 
-print("Model trained successfully (Price per Perch only) ✅")
+print("Model trained successfully !!")

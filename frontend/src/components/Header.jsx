@@ -33,7 +33,7 @@ const Header = () => {
     { name: "Dashboard", icon: <DashboardIcon />, link: "/" },
     { name: "Properties", icon: <HomeWorkIcon />, link: "/properties" },
     { name: "Valuation", icon: <AssessmentIcon />, link: "/valuation" },
-    { name: "Reports", icon: <DescriptionIcon />, link: "/reports" },
+    { name: "Tax Store", icon: <DescriptionIcon />, link: "/val-store" },
   ];
 
   const handleLogout = () => {
