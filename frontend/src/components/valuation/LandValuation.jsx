@@ -97,7 +97,7 @@ const LandValuation = () => {
         setProperty({
           latitude: parseFloat(coordinates.lat),
           longitude: parseFloat(coordinates.lon),
-          estimatedLandValue: res.data.public_estimated_price,
+          estimatedLandValue: res.data.total_price,
           owner: ownerName,
           landSize: perchToSqft(landSize),
         }),
@@ -243,7 +243,7 @@ const LandValuation = () => {
                 Estimated Land Value
               </Typography>
               <Typography variant="h4" color="#2e7d32" fontWeight={800}>
-                LKR {data.public_estimated_price.toLocaleString()}
+                LKR {data.total_price.toLocaleString()}
               </Typography>
             </Box>
 
@@ -288,13 +288,7 @@ const LandValuation = () => {
               </Typography>
               <Grid container spacing={1.5}>
                 {[
-                  {
-                    icon: <DirectionsCarIcon />,
-                    label: "Main Road",
-                    val:
-                      Math.round(data.features.mainroad_distance * 100) / 100,
-                    color: "#4caf50",
-                  },
+                  
                   {
                     icon: <LocationCityIcon />,
                     label: "Town Center",

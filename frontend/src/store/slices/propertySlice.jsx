@@ -1,8 +1,8 @@
 import { createSlice } from "@reduxjs/toolkit";
 
 const initialState = {
-  property: null, // single property
-  nextPropertyId: 101, // starting ID
+  property: null, 
+  nextPropertyId: 101, 
 };
 
 const propertySlice = createSlice({
@@ -11,7 +11,7 @@ const propertySlice = createSlice({
   reducers: {
     setProperty: (state, action) => {
       state.property = {
-        propertyId: state.nextPropertyId, // assign numeric ID
+        propertyId: state.nextPropertyId, 
         latitude: action.payload.latitude,
         longitude: action.payload.longitude,
         estimatedLandValue: action.payload.estimatedLandValue,
@@ -19,7 +19,7 @@ const propertySlice = createSlice({
         owner: action.payload.owner,
         landSize: action.payload.landSize,
       };
-      state.nextPropertyId += 1; // increment for next property
+      state.nextPropertyId += 1; 
     },
     updateEstimatedLandValue: (state, action) => {
       if (

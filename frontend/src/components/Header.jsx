@@ -57,15 +57,10 @@ const Header = () => {
           top: 0,
           zIndex: 200,
         }}
+        
       >
-        <Container
-          sx={{
-            position: "relative",
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
+        <div className="relative container"> <div
+          className="flex flex-row w-full items-center justify-between"
         >
           <Box component="a" href="/">
             <Box component="img" src="/Images/valuerBot-logo.png" width={240} />
@@ -82,7 +77,8 @@ const Header = () => {
           >
             <MenuIcon sx={{ fontSize: 30 }} />
           </IconButton>
-        </Container>
+        </div></div>
+       
         <Box
           sx={{
             width: "100%",

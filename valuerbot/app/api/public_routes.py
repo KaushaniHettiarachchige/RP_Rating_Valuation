@@ -5,7 +5,7 @@ from app.ml.predict_public import predict_public
 
 router = APIRouter()
 
-@router.post("/public/estimate")
+@router.post("/public/valuate")
 
 def estimate_public(data: PropertyInput):
     print("clicked")

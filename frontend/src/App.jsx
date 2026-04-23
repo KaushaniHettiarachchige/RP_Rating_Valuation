@@ -10,6 +10,8 @@ import { useSelector } from "react-redux";
 import TaxPoint from "./components/taxPoint/TaxPoint";
 import PropertyValuation from "./components/valuation/PropertyValuation";
 import BuildingValuation from "./components/valuation/BuildingValuation";
+import MyPropertiesSection from "./components/land-valuation/LandValuation";
+import ValuateLand from "./components/land-valuation/ValuateLand";
 function App() {
   const { isLoggedIn } = useSelector((state) => state.auth);
 
@@ -41,6 +43,16 @@ function App() {
           element={
             isLoggedIn ? <BuildingValuation /> : <Navigate to="/login" />
           }
+        />
+        <Route
+          path="/properties"
+          element={
+            isLoggedIn ? <MyPropertiesSection /> : <Navigate to="/login" />
+          }
+        />
+        <Route
+          path="/valuate/:id"
+          element={isLoggedIn ? <ValuateLand /> : <Navigate to="/login" />}
         />
       </Routes>
       {isLoggedIn && <Footer />}

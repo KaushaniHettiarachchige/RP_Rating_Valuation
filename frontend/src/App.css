@@ -60,3 +60,28 @@
   padding-left: 80px !important;
   padding-right: 80px !important;
 }
+
+.container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+
+  /* sm: 600px */
+  @media (width >= 37.5rem) {
+    max-width: 60rem;
+  }
+
+  /* md: 960px */
+  @media (width >= 60rem) {
+    max-width: 80rem;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  /* lg: 1280px */
+  @media (width >= 80rem) {
+    max-width: 92rem;
+  }
+}
