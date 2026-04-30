@@ -2,12 +2,57 @@ import numpy as np
 import osmnx as ox
 import math
 from geopy.distance import geodesic
-from osmnx._errors import InsufficientResponseError
+from shapely.geometry import Point
 
 OSM_DATA = None
 
-
 FORT_LOCATION = (6.9344, 79.8428)
+
+
+def classify_landuse(tag):
+    if not tag:
+        return "others"
+
+    tag = str(tag).lower()
+
+    if tag in ["residential"]:
+        return "residential"
+    elif tag in ["commercial", "retail"]:
+        return "commercial"
+    elif tag in ["industrial"]:
+        return "industrial"
+    elif tag in ["farmland", "farm", "orchard", "vineyard", "meadow", "agriculture"]:
+        return "agriculture"
+    else:
+        return "others"
+
+
+def get_landuse_type(lat, lon, data):
+    try:
+        if data is None or data.empty:
+            return "others"
+
+        if "landuse" not in data.columns:
+            return "others"
+
+        pt = Point(lon, lat)
+
+        land_df = data[data["landuse"].notna()]
+
+        if land_df.empty:
+            return "others"
+
+        matches = land_df[land_df.geometry.contains(pt)]
+
+        if matches.empty:
+            return "others"
+
+        landuse_tag = matches.iloc[0].get("landuse")
+
+        return classify_landuse(landuse_tag)
+
+    except Exception:
+        return "others"
 
 
 def fetch_all_features(lat, lon):
@@ -19,10 +64,9 @@ def fetch_all_features(lat, lon):
             "shop": "supermarket",
             "highway": ["motorway"],
             "railway": "station",
-            "place": ["city", "town",],
+            "place": ["city", "town"],
             "healthcare": True,
             "landuse": True,
-            
         }
 
         OSM_DATA = ox.features_from_point((lat, lon), tags=tags, dist=10000)
@@ -47,7 +91,6 @@ def clean_json(obj):
             return None
 
     return obj
-
 
 
 def safe_distance(lat, lon, geom):
@@ -88,7 +131,6 @@ def safe_filter(df, column, value):
         return None
 
 
-
 def min_distance(df, lat, lon):
     try:
         if df is None or df.empty:
@@ -105,7 +147,6 @@ def min_distance(df, lat, lon):
 
     except Exception:
         return None
-
 
 
 def count_within(df, lat, lon, km):
@@ -135,10 +176,8 @@ def count_within(df, lat, lon, km):
         return 0
 
 
-
 def valid_name(name):
     return name and str(name).strip().lower() not in ["nan", "none", ""]
-
 
 
 def get_places(df, lat, lon, radius_km):
@@ -158,7 +197,6 @@ def get_places(df, lat, lon, radius_km):
 
             dist = safe_distance(lat, lon, r.geometry)
 
-            # skip if distance invalid or outside radius
             if dist is None or dist > radius_km:
                 continue
 
@@ -181,7 +219,6 @@ def get_places(df, lat, lon, radius_km):
 
     except Exception:
         return []
-
 
 
 def get_nearest_town(lat, lon, data):
@@ -217,7 +254,8 @@ def get_nearest_town(lat, lon, data):
         return nearest_name if nearest_name else "Unknown"
 
     except Exception:
-        return "Unknown"    
+        return "Unknown"
+
 
 def extract_feature_values(lat, lon, data):
     if data is None:
@@ -257,11 +295,10 @@ def extract_feature_values(lat, lon, data):
 
     features["distance_to_fort_km"] = distance_to_fort(lat, lon)
 
-
    
+    features["landuse_type"] = get_landuse_type(lat, lon, data)
 
     return features
-
 
 
 
@@ -279,5 +316,6 @@ def extract_places(lat, lon, data):
     places["fuel_stations"] = get_places(safe_filter(data, "amenity", "fuel"), lat, lon, 2)
     places["hospitals"] = get_places(safe_filter(data, "amenity", "hospital"), lat, lon, 5)
     places["nearest_town"] = get_nearest_town(lat, lon, data)
+    places["landuse_type"] = get_landuse_type(lat, lon, data)
 
     return places

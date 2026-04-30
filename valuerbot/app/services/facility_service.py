@@ -35,7 +35,7 @@ def count_features(key, value, name):
 
         subset = OSM_DATA[OSM_DATA[key] == value]
 
-        # ❗ remove unnamed
+       
         if "name" in subset.columns:
             subset = subset.dropna(subset=["name"])
 
@@ -44,7 +44,7 @@ def count_features(key, value, name):
         for _, row in subset.iterrows():
             geom = row.geometry
 
-            # handle Point / Polygon
+          
             if geom.geom_type == "Point":
                 lat = geom.y
                 lon = geom.x
@@ -90,7 +90,7 @@ def nearest_distance(lat, lon, key, value, name):
         for _, row in subset.iterrows():
             geom = row.geometry
 
-            # Handle Point / Polygon safely
+           
             if geom.geom_type == "Point":
                 point = geom
             else:
@@ -145,3 +145,58 @@ def get_nearest_airport(lat, lon):
 
 def get_nearest_harbor(lat, lon):
     return nearest_distance(lat, lon, "amenity", "port", "Harbor")
+
+
+
+def classify_landuse(tag):
+    if not tag:
+        return "others"
+
+    tag = tag.lower()
+
+    if tag == "residential":
+        return "residential"
+
+    elif tag in ["commercial", "retail"]:
+        return "commercial"
+
+    elif tag == "industrial":
+        return "industrial"
+
+    elif tag in ["farmland", "farm", "orchard", "vineyard", "meadow", "agriculture"]:
+        return "agriculture"
+
+    else:
+        return "others"
+
+
+def get_landuse_type(lat, lon):
+    global OSM_DATA
+
+    try:
+        print("Fetching landuse data...")
+        gdf = ox.features_from_point(
+            (lat, lon),
+            tags={"landuse": True},
+            dist=500
+        )
+    except InsufficientResponseError:
+        return "others"
+
+    if gdf.empty:
+        return "others"
+
+    from shapely.geometry import Point
+    pt = Point(lon, lat)
+
+    
+    matches = gdf[gdf.geometry.contains(pt)]
+
+    if matches.empty:
+        return "others"
+
+    row = matches.iloc[0]
+    landuse_tag = row.get("landuse")
+
+   
+    return classify_landuse(landuse_tag)

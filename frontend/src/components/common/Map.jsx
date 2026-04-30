@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
+import SchoolIcon from "@mui/icons-material/School";
+import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
+import LocalGasStationIcon from "@mui/icons-material/LocalGasStation";
+import LocalHospitalIcon from "@mui/icons-material/LocalHospital";
+import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
+import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
+import TrainIcon from "@mui/icons-material/Train";
 import { useDispatch } from "react-redux";
 import { setCoordinates } from "../../store/slices/appSlice";
 import {
@@ -25,7 +32,7 @@ L.Icon.Default.mergeOptions({
 /* ================= ICONS ================= */
 const icons = {
   schools: new L.Icon({
-    iconUrl: "https://cdn-icons-png.flaticon.com/512/2991/2991148.png",
+    iconUrl: "../../../public/Images/home-schooling-color-icon.svg",
     iconSize: [30, 30],
   }),
   banks: new L.Icon({
@@ -33,11 +40,11 @@ const icons = {
     iconSize: [30, 30],
   }),
   fuel_stations: new L.Icon({
-    iconUrl: "https://cdn-icons-png.flaticon.com/512/481/481857.png",
+    iconUrl: "../../../public/Images/gas-station-map-location-icon.svg",
     iconSize: [30, 30],
   }),
   hospitals: new L.Icon({
-    iconUrl: "https://cdn-icons-png.flaticon.com/512/2966/2966327.png",
+    iconUrl: "../../../public/Images/clinic-hospital-location-icon.svg",
     iconSize: [30, 30],
   }),
   supermarkets: new L.Icon({
@@ -49,12 +56,12 @@ const icons = {
     iconSize: [30, 30],
   }),
   railway_stations: new L.Icon({
-    iconUrl: "https://cdn-icons-png.flaticon.com/512/1042/1042339.png",
+    iconUrl: "../../../public/Images/railway-icon.svg",
     iconSize: [30, 30],
   }),
 };
 
-/* ================= RECENTER MAP ================= */
+
 function RecenterMap({ coords }) {
   const map = useMap();
 
@@ -117,15 +124,38 @@ export default function Map({ coordinates, onMarkerChange, places }) {
   return (
     <div className="relative w-full h-full grid-cols-1 overflow-visible">
       <div className="absolute top-2 right-2 bg-white p-2 rounded shadow z-[999] text-xs">
-        <div className="font-bold mb-1">Legend</div>
-        <div>🏫 Schools</div>
-        <div>🏦 Banks</div>
-        <div>⛽ Fuel</div>
-        <div>🏥 Hospitals</div>
-        <div>🛒 Supermarkets</div>
-        <div>🎓 Universities</div>
-        <div>🚆 Railway</div>
-      </div>
+       <div>
+  <div className="font-bold mb-2">Legend</div>
+
+  <div className="flex items-center gap-2">
+    <SchoolIcon fontSize="small" /> Schools
+  </div>
+
+  <div className="flex items-center gap-2">
+    <AccountBalanceIcon fontSize="small" /> Banks
+  </div>
+
+  <div className="flex items-center gap-2">
+    <LocalGasStationIcon fontSize="small" /> Fuel
+  </div>
+
+  <div className="flex items-center gap-2">
+    <LocalHospitalIcon fontSize="small" /> Hospitals
+  </div>
+
+  <div className="flex items-center gap-2">
+    <ShoppingCartIcon fontSize="small" /> Supermarkets
+  </div>
+
+  <div className="flex items-center gap-2">
+    <SchoolOutlinedIcon fontSize="small" /> Universities
+  </div>
+
+  <div className="flex items-center gap-2">
+    <TrainIcon fontSize="small" /> Railway
+  </div>
+</div>
+</div>
 
       <MapContainer
         center={coords}
