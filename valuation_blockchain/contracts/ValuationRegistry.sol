@@ -18,6 +18,9 @@ contract ValuationRegistry {
         string documentHash; // Digital Signature (SHA-256 of the deed/report)
         bool isRegistered; // To check if property exists
         bool isPaid; // Tax payment status
+        bool hasBankLoan; // Encumbrance flag: true when mortgaged
+        bool hasPendingTransfer; // Two-step transfer pending council approval
+        address pendingNewOwner; // Proposed new owner awaiting approval
     }
 
     // 2. Storage: Mapping Property ID to Property Details
@@ -49,8 +52,29 @@ contract ValuationRegistry {
     );
     event OwnershipTransferred(
         uint256 indexed propertyId,
-        address indexed oldOwner,
+        address indexed previousOwner,
         address indexed newOwner,
+        uint256 timestamp
+    );
+    event TransferRequested(
+        uint256 indexed propertyId,
+        address indexed requestedBy,
+        address indexed proposedNewOwner,
+        uint256 timestamp
+    );
+    event TransferRejected(
+        uint256 indexed propertyId,
+        address indexed rejectedBy,
+        uint256 timestamp
+    );
+    event TransferWithdrawn(
+        uint256 indexed propertyId,
+        address indexed withdrawnBy,
+        uint256 timestamp
+    );
+    event EncumbranceUpdated(
+        uint256 indexed propertyId,
+        bool hasBankLoan,
         uint256 timestamp
     );
 
@@ -75,8 +99,20 @@ contract ValuationRegistry {
             "Error: Property ID already exists."
         );
 
-        // Initialize with zero value/tax/age and isPaid set to false
-        properties[_id] = Property(_id, 0, 0, 0, _owner, "", true, false);
+        // Initialize with zero value/tax/age and all transfer guards disabled
+        properties[_id] = Property(
+            _id,
+            0,
+            0,
+            0,
+            _owner,
+            "",
+            true,
+            false,
+            false,
+            false,
+            address(0)
+        );
 
         emit PropertyRegistered(_id, _owner, block.timestamp);
     }
@@ -124,7 +160,10 @@ contract ValuationRegistry {
             uint256,
             address,
             string memory,
-            bool
+            bool,
+            bool,
+            bool,
+            address
         )
     {
         require(properties[_id].isRegistered, "Property not found.");
@@ -136,7 +175,10 @@ contract ValuationRegistry {
             p.buildingAge,
             p.ownerAddress,
             p.documentHash,
-            p.isPaid
+            p.isPaid,
+            p.hasBankLoan,
+            p.hasPendingTransfer,
+            p.pendingNewOwner
         );
     }
 
@@ -161,34 +203,126 @@ contract ValuationRegistry {
         );
     }
 
-    // 8. Transfer Ownership Function (with Tax Payment Check)
-    // PP2 FEATURE: Land Transfer with Integrity Lock & Audit Trail
-    function transferOwnership(
+    // 8. Council-controlled encumbrance update (loan/mortgage status)
+    function setEncumbranceStatus(
         uint256 _propertyId,
-        address _newOwner
+        bool _hasBankLoan
     ) public onlyCouncil {
         require(
             properties[_propertyId].isRegistered,
             "Error: Property not registered."
         );
-        // INTEGRITY LOCK: Block transfer if taxes are unpaid
+
+        properties[_propertyId].hasBankLoan = _hasBankLoan;
+
+        emit EncumbranceUpdated(_propertyId, _hasBankLoan, block.timestamp);
+    }
+
+    // 9. Two-step transfer: Step 1 request transfer (owner/council)
+    function requestTransfer(uint256 _propertyId, address _newOwner) public {
+        require(
+            properties[_propertyId].isRegistered,
+            "Error: Property not registered."
+        );
+        require(
+            msg.sender == municipalCouncil ||
+                msg.sender == properties[_propertyId].ownerAddress,
+            "Access Denied: Only owner or council can request transfer."
+        );
         require(
             properties[_propertyId].isPaid == true,
             "Transfer Blocked: Outstanding Tax!"
         );
+        require(
+            !properties[_propertyId].hasBankLoan,
+            "Transfer Blocked: Property is mortgaged."
+        );
+        require(
+            !properties[_propertyId].hasPendingTransfer,
+            "Transfer already pending council approval."
+        );
         require(_newOwner != address(0), "Error: Invalid new owner address.");
+        require(
+            _newOwner != properties[_propertyId].ownerAddress,
+            "Error: New owner must be different from current owner."
+        );
 
-        address oldOwner = properties[_propertyId].ownerAddress;
-        properties[_propertyId].ownerAddress = _newOwner;
+        properties[_propertyId].hasPendingTransfer = true;
+        properties[_propertyId].pendingNewOwner = _newOwner;
+
+        emit TransferRequested(
+            _propertyId,
+            msg.sender,
+            _newOwner,
+            block.timestamp
+        );
+    }
+
+    // 10. Two-step transfer: Step 2 council approval finalizes transfer
+    function approveTransfer(uint256 _propertyId) public onlyCouncil {
+        require(
+            properties[_propertyId].isRegistered,
+            "Error: Property not registered."
+        );
+        require(
+            properties[_propertyId].hasPendingTransfer,
+            "Error: No pending transfer request."
+        );
+
+        address previousOwner = properties[_propertyId].ownerAddress;
+        address newOwner = properties[_propertyId].pendingNewOwner;
+
+        properties[_propertyId].ownerAddress = newOwner;
+        properties[_propertyId].hasPendingTransfer = false;
+        properties[_propertyId].pendingNewOwner = address(0);
         // STATUS RESET: New owner starts with fresh tax liability
         properties[_propertyId].isPaid = false;
 
         // AUDIT TRAIL: Immutable record of every ownership change
         emit OwnershipTransferred(
             _propertyId,
-            oldOwner,
-            _newOwner,
+            previousOwner,
+            newOwner,
             block.timestamp
         );
+    }
+
+    // 11. Council can reject a pending transfer request
+    function rejectTransfer(uint256 _propertyId) public onlyCouncil {
+        require(
+            properties[_propertyId].isRegistered,
+            "Error: Property not registered."
+        );
+        require(
+            properties[_propertyId].hasPendingTransfer,
+            "Error: No pending transfer request."
+        );
+
+        properties[_propertyId].hasPendingTransfer = false;
+        properties[_propertyId].pendingNewOwner = address(0);
+
+        emit TransferRejected(_propertyId, msg.sender, block.timestamp);
+    }
+
+    // 12. Owner (or council) can withdraw a pending transfer request
+    function withdrawTransfer(uint256 _propertyId) public {
+        require(
+            properties[_propertyId].isRegistered,
+            "Error: Property not registered."
+        );
+        require(
+            properties[_propertyId].hasPendingTransfer,
+            "Error: No pending transfer request."
+        );
+        require(
+            msg.sender == municipalCouncil ||
+                msg.sender == properties[_propertyId].ownerAddress,
+            "Access Denied: Only owner or council can withdraw transfer."
+        );
+
+        properties[_propertyId].hasPendingTransfer = false;
+        properties[_propertyId].pendingNewOwner = address(0);
+
+        emit TransferWithdrawn(_propertyId, msg.sender, block.timestamp);
     }
 }

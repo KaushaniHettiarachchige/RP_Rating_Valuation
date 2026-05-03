@@ -1,46 +1,80 @@
-import "./App.css";
-import Header from "./components/Header";
-import Footer from "./components/Footer";
-import Home from "./components/Home";
-import Login from "./pages/Login";
-import ResidentPortal from "./pages/ResidentPortal";
-import CouncilDashboard from "./pages/CouncilDashboard";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useSelector } from "react-redux";
-import TaxPoint from "./components/taxPoint/TaxPoint";
-import PropertyValuation from "./components/valuation/PropertyValuation";
-import BuildingValuation from "./components/valuation/BuildingValuation";
+import { useState } from 'react';
+import './App.css';
+import Header from './components/Header';
+import Footer from './components/Footer';
+import ResidentPortal from './pages/ResidentPortal';
+import CouncilDashboard from './pages/CouncilDashboard';
+
 function App() {
-  const { isLoggedIn } = useSelector((state) => state.auth);
+  const [activeTab, setActiveTab] = useState('resident');
 
   return (
-    <BrowserRouter>
-      {isLoggedIn && <Header />} {/* show header only when logged in */}
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/"
-          element={isLoggedIn ? <Home /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/tax-point"
-          element={isLoggedIn ? <TaxPoint /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/valuation/*"
-          element={
-            isLoggedIn ? <PropertyValuation /> : <Navigate to="/login" />
-          }
-        />
-        <Route
-          path="/valuation/building/*"
-          element={
-            isLoggedIn ? <BuildingValuation /> : <Navigate to="/login" />
-          }
-        />
-      </Routes>
-      {isLoggedIn && <Footer />}
-    </BrowserRouter>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-green-50 to-emerald-50">
+      {/* Professional Header */}
+      <Header />
+
+      <div className="w-full py-4">
+        {/* Segmented Navigation Control */}
+        <div className="flex justify-center mb-4">
+          <div className="inline-flex bg-white rounded-xl shadow-lg border border-green-200 p-1.5">
+            <button 
+              onClick={() => setActiveTab('resident')}
+              className={`
+                px-8 py-4 rounded-lg font-semibold text-base transition-all duration-300
+                flex items-center gap-3
+                ${
+                  activeTab === 'resident' 
+                    ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow-md' 
+                    : 'text-green-600 hover:text-green-900 hover:bg-green-50'
+                }
+              `}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              <div className="text-left">
+                <div>Resident Portal</div>
+                <div className={`text-xs font-normal ${activeTab === 'resident' ? 'text-emerald-100' : 'text-green-500'}`}>
+                  Verify & Detect Corruption
+                </div>
+              </div>
+            </button>
+            <button 
+              onClick={() => setActiveTab('council')}
+              className={`
+                px-8 py-4 rounded-lg font-semibold text-base transition-all duration-300
+                flex items-center gap-3
+                ${
+                  activeTab === 'council' 
+                    ? 'bg-gradient-to-r from-lime-600 to-green-600 text-white shadow-md' 
+                    : 'text-green-600 hover:text-green-900 hover:bg-green-50'
+                }
+              `}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <div className="text-left">
+                <div>Council Dashboard</div>
+                <div className={`text-xs font-normal ${activeTab === 'council' ? 'text-lime-100' : 'text-green-500'}`}>
+                  Assess Properties
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Render Active View */}
+        <div className="w-full bg-white rounded-2xl shadow-2xl border border-green-200 overflow-hidden">
+          <div className="p-4 md:p-6 lg:p-8">
+            {activeTab === 'resident' ? <ResidentPortal /> : <CouncilDashboard />}
+          </div>
+        </div>
+      </div>
+
+      {/* Professional Footer */}
+      <Footer />
+    </div>
   );
 }
 

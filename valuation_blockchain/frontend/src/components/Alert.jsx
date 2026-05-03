@@ -1,9 +1,9 @@
 const Alert = ({ type = "info", children }) => {
   const styles = {
     success: "bg-emerald-50 border-emerald-600 text-emerald-900",
-    error: "bg-rose-50 border-rose-600 text-rose-900",
-    warning: "bg-amber-50 border-amber-600 text-amber-900",
-    info: "bg-blue-50 border-blue-600 text-blue-900"
+    error: "bg-green-50 border-green-600 text-green-900",
+    warning: "bg-lime-50 border-lime-600 text-lime-900",
+    info: "bg-green-50 border-green-600 text-green-900"
   };
 
   const icons = {

@@ -11,10 +11,10 @@
   transition: filter 300ms;
 }
 .logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
+  filter: drop-shadow(0 0 2em #16a34aaa);
 }
 .logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+  filter: drop-shadow(0 0 2em #22c55eaa);
 }
 
 @keyframes logo-spin {
@@ -52,11 +52,5 @@
 }
 
 .read-the-docs {
-  color: #888;
-}
-
-.MuiContainer-root {
-  max-width: none !important;
-  padding-left: 80px !important;
-  padding-right: 80px !important;
+  color: #166534;
 }

@@ -14,7 +14,9 @@ app.use(cors());
 // =============================================================
 
 // The contract address you got from deployment (Update after running deploy.js)
-const CONTRACT_ADDRESS = "0xa58b6aaBed2c25bD76cAe21205cB5F74Cf5Fa1Cf";
+const CONTRACT_ADDRESS = "0x8226df5B5F270568a3C741A5657a4FEb40ED8EA4";
+
+
 
 // The private key of Account #0 from Hardhat (The Council Admin)
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
@@ -56,6 +58,28 @@ const genAI = createGenAIClient(GEMINI_API_KEY);
 
 // Connect to the Hardhat node (with ENS disabled for local network)
 const provider = new ethers.JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
+
+const TRANSFER_SCAN_START_BLOCK = Number(process.env.TRANSFER_SCAN_START_BLOCK || 0);
+const TRANSFER_SCAN_BLOCK_RANGE = Number(process.env.TRANSFER_SCAN_BLOCK_RANGE || 50000);
+
+async function queryFilterPaginated(contract, filter, fromBlock, toBlock, maxBlockRange = TRANSFER_SCAN_BLOCK_RANGE) {
+    let allEvents = [];
+    let currentBlock = fromBlock;
+    const latestBlockNumber = toBlock === "latest" ? await contract.runner.provider.getBlockNumber() : toBlock;
+
+    while (currentBlock <= latestBlockNumber) {
+        const endBlock = Math.min(currentBlock + maxBlockRange - 1, latestBlockNumber);
+        try {
+            const events = await contract.queryFilter(filter, currentBlock, endBlock);
+            allEvents = allEvents.concat(events);
+        } catch (err) {
+            console.warn(`⚠️  Error querying blocks ${currentBlock}-${endBlock}: ${err.message}`);
+        }
+        currentBlock = endBlock + 1;
+    }
+
+    return allEvents;
+}
 
 // =============================================================
 // 3. MULTI-CRITERIA VALUATION ALGORITHM (NOVELTY FEATURE)
@@ -383,22 +407,37 @@ app.post('/transfer-property', async (req, res) => {
         console.log("============================================");
         console.log(req.body);
 
-        const { propertyId, newOwnerNIC } = req.body;
+        const { propertyId, newOwnerNIC, newOwnerAddress } = req.body;
 
-        if (!propertyId || !newOwnerNIC) {
+        if (!propertyId || (!newOwnerNIC && !newOwnerAddress)) {
             return res.status(400).json({
-                error: "Missing required fields: propertyId and newOwnerNIC"
+                error: "Missing required fields: propertyId and (newOwnerNIC or newOwnerAddress)"
             });
         }
 
-        // Generate new custodial wallet for new owner
-        console.log(`\n👤 GENERATING CUSTODIAL WALLET FOR NEW OWNER...`);
-        console.log(`   New Owner NIC: ${newOwnerNIC}`);
-        const newWallet = ethers.Wallet.createRandom();
-        const newOwnerAddress = newWallet.address;
-        const newPrivateKey = newWallet.privateKey;
-        console.log(`   ✅ Generated Wallet Address: ${newOwnerAddress}`);
-        console.log(`   🔑 Private Key: ${newPrivateKey}`);
+        let proposedNewOwner = newOwnerAddress;
+        let generatedWallet = null;
+
+        if (!proposedNewOwner && newOwnerNIC) {
+            // Generate new custodial wallet for new owner
+            console.log(`\n👤 GENERATING CUSTODIAL WALLET FOR NEW OWNER...`);
+            console.log(`   New Owner NIC: ${newOwnerNIC}`);
+            const newWallet = ethers.Wallet.createRandom();
+            proposedNewOwner = newWallet.address;
+            generatedWallet = {
+                address: newWallet.address,
+                privateKey: newWallet.privateKey,
+                nic: newOwnerNIC
+            };
+            console.log(`   ✅ Generated Wallet Address: ${newWallet.address}`);
+            console.log(`   🔑 Private Key: ${newWallet.privateKey}`);
+        }
+
+        if (!proposedNewOwner || !ethers.isAddress(proposedNewOwner)) {
+            return res.status(400).json({
+                error: "Invalid new owner address"
+            });
+        }
 
         // Connect to contract
         const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
@@ -408,6 +447,8 @@ app.post('/transfer-property', async (req, res) => {
         const propertyData = await contract.properties(propertyId);
         const isRegistered = propertyData[6];
         const isPaid = propertyData[7];
+        const hasBankLoan = propertyData[8];
+        const hasPendingTransfer = propertyData[9];
         const currentOwner = propertyData[4];
 
         if (!isRegistered) {
@@ -421,36 +462,54 @@ app.post('/transfer-property', async (req, res) => {
         console.log(`   Current Owner: ${currentOwner}`);
         console.log(`   Payment Status: ${isPaid ? "PAID ✅" : "UNPAID ❌"}`);
 
-        // Attempt transfer (will revert if tax not paid)
-        console.log(`\n⛓️  EXECUTING OWNERSHIP TRANSFER...`);
+        if (!isPaid) {
+            return res.status(400).json({
+                error: "Transfer Blocked: Outstanding Tax!",
+                details: "Property tax must be paid before ownership can be transferred",
+                requiresPayment: true
+            });
+        }
+
+        if (hasBankLoan) {
+            return res.status(400).json({
+                error: "Transfer Blocked: Property is mortgaged.",
+                details: "Encumbrance must be cleared before ownership can be transferred"
+            });
+        }
+
+        if (hasPendingTransfer) {
+            return res.status(400).json({
+                error: "Transfer already pending council approval.",
+                details: "A transfer request is already in the council queue"
+            });
+        }
+
+        // Request transfer (two-step approval)
+        console.log(`\n⛓️  SUBMITTING TRANSFER REQUEST...`);
         const nonce = await provider.getTransactionCount(wallet.address, 'latest');
-        const tx = await contract.transferOwnership(propertyId, newOwnerAddress, {
+        const tx = await contract.requestTransfer(propertyId, proposedNewOwner, {
             nonce: nonce,
             gasLimit: 300000
         });
 
         console.log(`   ⏳ Waiting for transaction confirmation...`);
         const receipt = await tx.wait();
-        console.log(`   ✅ Ownership Transferred Successfully!`);
+        console.log(`   ✅ Transfer Request Submitted!`);
         console.log(`   Block: ${receipt.blockNumber}`);
         console.log(`   Transaction Hash: ${receipt.hash}`);
         console.log(`   Previous Owner: ${currentOwner}`);
-        console.log(`   New Owner: ${newOwnerAddress}`);
+        console.log(`   Proposed New Owner: ${proposedNewOwner}`);
         console.log("============================================\n");
 
         res.json({
             success: true,
-            message: "Ownership transferred successfully",
+            message: "Transfer request submitted and pending council approval",
             txHash: receipt.hash,
             blockNumber: receipt.blockNumber,
             propertyId: propertyId,
-            previousOwner: currentOwner,
-            newOwner: newOwnerAddress,
-            newOwnerWallet: {
-                address: newOwnerAddress,
-                privateKey: newPrivateKey,
-                nic: newOwnerNIC
-            }
+            currentOwner: currentOwner,
+            proposedNewOwner: proposedNewOwner,
+            newOwnerWallet: generatedWallet
         });
 
     } catch (error) {
@@ -458,7 +517,7 @@ app.post('/transfer-property', async (req, res) => {
         console.error(error.message);
 
         // Check if error is due to unpaid tax
-        if (error.message.includes("Transfer Blocked: Outstanding Tax Payment Required")) {
+        if (error.message.includes("Transfer Blocked: Outstanding Tax")) {
             console.error("   REASON: Tax payment is required before transfer");
             console.error("============================================\n");
 
@@ -473,6 +532,247 @@ app.post('/transfer-property', async (req, res) => {
 
         res.status(500).json({
             error: error.message || "Transfer failed",
+            details: error.reason || "Unknown error"
+        });
+    }
+});
+
+// =============================================================
+// 7A. PENDING TRANSFERS QUEUE
+// =============================================================
+
+app.get('/pending-transfers', async (req, res) => {
+    try {
+        const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, wallet);
+
+        const transferEvents = await queryFilterPaginated(
+            contract,
+            contract.filters.TransferRequested(),
+            TRANSFER_SCAN_START_BLOCK,
+            "latest"
+        );
+
+        const uniqueIds = Array.from(new Set(transferEvents.map(e => Number(e.args.propertyId))));
+        const items = [];
+
+        for (const propertyId of uniqueIds) {
+            const propertyData = await contract.properties(propertyId);
+            const isRegistered = propertyData[6];
+            const hasPendingTransfer = propertyData[9];
+            if (!isRegistered || !hasPendingTransfer) continue;
+
+            const currentOwner = propertyData[4];
+            const proposedNewOwner = propertyData[10];
+
+            const lastRequest = transferEvents
+                .filter(e => Number(e.args.propertyId) === propertyId)
+                .sort((a, b) => b.blockNumber - a.blockNumber)[0];
+
+            items.push({
+                propertyId,
+                currentOwner,
+                proposedNewOwner,
+                requestedAt: lastRequest?.args?.timestamp ? Number(lastRequest.args.timestamp) * 1000 : null,
+                txHash: lastRequest?.transactionHash || null
+            });
+        }
+
+        res.json({
+            success: true,
+            items
+        });
+    } catch (error) {
+        console.error("\n❌ PENDING TRANSFERS ERROR:");
+        console.error(error.message);
+        console.error("============================================\n");
+
+        res.status(500).json({
+            error: error.message || "Failed to load pending transfers",
+            details: error.reason || "Unknown error"
+        });
+    }
+});
+
+// =============================================================
+// 7B. APPROVE TRANSFER (COUNCIL)
+// =============================================================
+
+app.post('/approve-transfer', async (req, res) => {
+    try {
+        const { propertyId } = req.body;
+
+        if (!propertyId) {
+            return res.status(400).json({
+                error: "Missing required field: propertyId"
+            });
+        }
+
+        const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, wallet);
+
+        const propertyData = await contract.properties(propertyId);
+        const isRegistered = propertyData[6];
+        const hasPendingTransfer = propertyData[9];
+        const previousOwner = propertyData[4];
+        const newOwner = propertyData[10];
+
+        if (!isRegistered) {
+            return res.status(404).json({
+                error: "Property not found"
+            });
+        }
+
+        if (!hasPendingTransfer) {
+            return res.status(400).json({
+                error: "No pending transfer request for this property"
+            });
+        }
+
+        const nonce = await provider.getTransactionCount(wallet.address, 'latest');
+        const tx = await contract.approveTransfer(propertyId, {
+            nonce: nonce,
+            gasLimit: 300000
+        });
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Transfer approved and finalized",
+            txHash: receipt.hash,
+            blockNumber: receipt.blockNumber,
+            propertyId: propertyId,
+            previousOwner,
+            newOwner
+        });
+    } catch (error) {
+        console.error("\n❌ APPROVAL ERROR:");
+        console.error(error.message);
+        console.error("============================================\n");
+
+        res.status(500).json({
+            error: error.message || "Approval failed",
+            details: error.reason || "Unknown error"
+        });
+    }
+});
+
+// =============================================================
+// 7C. REJECT TRANSFER (COUNCIL)
+// =============================================================
+
+app.post('/reject-transfer', async (req, res) => {
+    try {
+        const { propertyId } = req.body;
+
+        if (!propertyId) {
+            return res.status(400).json({
+                error: "Missing required field: propertyId"
+            });
+        }
+
+        const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, wallet);
+
+        const propertyData = await contract.properties(propertyId);
+        const isRegistered = propertyData[6];
+        const hasPendingTransfer = propertyData[9];
+
+        if (!isRegistered) {
+            return res.status(404).json({
+                error: "Property not found"
+            });
+        }
+
+        if (!hasPendingTransfer) {
+            return res.status(400).json({
+                error: "No pending transfer request for this property"
+            });
+        }
+
+        const nonce = await provider.getTransactionCount(wallet.address, 'latest');
+        const tx = await contract.rejectTransfer(propertyId, {
+            nonce: nonce,
+            gasLimit: 300000
+        });
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Transfer request rejected",
+            txHash: receipt.hash,
+            blockNumber: receipt.blockNumber,
+            propertyId: propertyId
+        });
+    } catch (error) {
+        console.error("\n❌ REJECTION ERROR:");
+        console.error(error.message);
+        console.error("============================================\n");
+
+        res.status(500).json({
+            error: error.message || "Rejection failed",
+            details: error.reason || "Unknown error"
+        });
+    }
+});
+
+// =============================================================
+// 7D. WITHDRAW TRANSFER (OWNER OR COUNCIL)
+// =============================================================
+
+app.post('/withdraw-transfer', async (req, res) => {
+    try {
+        const { propertyId } = req.body;
+
+        if (!propertyId) {
+            return res.status(400).json({
+                error: "Missing required field: propertyId"
+            });
+        }
+
+        const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, wallet);
+
+        const propertyData = await contract.properties(propertyId);
+        const isRegistered = propertyData[6];
+        const hasPendingTransfer = propertyData[9];
+
+        if (!isRegistered) {
+            return res.status(404).json({
+                error: "Property not found"
+            });
+        }
+
+        if (!hasPendingTransfer) {
+            return res.status(400).json({
+                error: "No pending transfer request for this property"
+            });
+        }
+
+        const nonce = await provider.getTransactionCount(wallet.address, 'latest');
+        const tx = await contract.withdrawTransfer(propertyId, {
+            nonce: nonce,
+            gasLimit: 300000
+        });
+
+        const receipt = await tx.wait();
+
+        res.json({
+            success: true,
+            message: "Transfer request withdrawn",
+            txHash: receipt.hash,
+            blockNumber: receipt.blockNumber,
+            propertyId: propertyId
+        });
+    } catch (error) {
+        console.error("\n❌ WITHDRAW ERROR:");
+        console.error(error.message);
+        console.error("============================================\n");
+
+        res.status(500).json({
+            error: error.message || "Withdraw failed",
             details: error.reason || "Unknown error"
         });
     }

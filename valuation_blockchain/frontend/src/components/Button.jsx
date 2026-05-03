@@ -1,9 +1,9 @@
 const Button = ({ children, onClick, disabled, loading, variant = "primary", type = "button", className = "" }) => {
   const variants = {
-    primary: "bg-gradient-to-r from-blue-700 to-blue-900 hover:from-blue-800 hover:to-blue-950 text-white",
-    danger: "bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-700 hover:to-red-800 text-white",
-    secondary: "bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white",
-    council: "bg-gradient-to-r from-amber-600 to-orange-700 hover:from-amber-700 hover:to-orange-800 text-white"
+    primary: "bg-gradient-to-r from-green-700 to-green-900 hover:from-green-800 hover:to-green-950 text-white",
+    danger: "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white",
+    secondary: "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white",
+    council: "bg-gradient-to-r from-lime-600 to-green-700 hover:from-lime-700 hover:to-green-800 text-white"
   };
 
   return (
