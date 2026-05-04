@@ -15,10 +15,10 @@ async function main() {
     const address = await valuationRegistry.getAddress();
 
     console.log("----------------------------------------------------");
-    console.log("✅ Contract deployed successfully!");
-    console.log("📍 Contract Address:", address);
+    console.log("Contract deployed successfully!");
+    console.log("Contract Address:", address);
     console.log("----------------------------------------------------");
-    console.log("⚠️  SAVE THIS ADDRESS! You need it for the Backend & Frontend.");
+    console.log(" SAVE THIS ADDRESS! You need it for the Backend & Frontend.");
 }
 
 main().catch((error) => {
