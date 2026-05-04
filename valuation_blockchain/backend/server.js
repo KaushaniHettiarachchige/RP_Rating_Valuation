@@ -4,10 +4,41 @@ const { ethers } = require('ethers');
 const cors = require('cors');
 const crypto = require('crypto'); // Node.js built-in for SHA-256
 const { GoogleGenAI } = require('@google/genai');
+const multer = require('multer');
 const app = express();
 
 app.use(express.json());
 app.use(cors());
+
+// =============================================================
+// 0. UPLOAD CONFIGURATION
+// =============================================================
+
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024; // 10MB per file
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
+    fileFilter: (req, file, cb) => {
+        const isImage = file.mimetype && file.mimetype.startsWith('image/');
+        const isDoc = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ].includes(file.mimetype);
+
+        if (file.fieldname === 'ownershipDocs') {
+            if (isImage || isDoc) return cb(null, true);
+            return cb(new Error('Invalid ownership document type.'));
+        }
+
+        if (file.fieldname === 'propertyImages') {
+            if (isImage) return cb(null, true);
+            return cb(new Error('Invalid property image type.'));
+        }
+
+        return cb(new Error('Unexpected upload field.'));
+    }
+});
 
 // =============================================================
 // 1. CONFIGURATION
@@ -164,12 +195,21 @@ function generateIntegrityHash(propertyId, assessedValue, taxAmount) {
 // 4. API ENDPOINT: AUTOMATED ASSESSMENT & BLOCKCHAIN WRITE
 // =============================================================
 
-app.post('/assess-property', async (req, res) => {
+app.post('/assess-property', upload.fields([
+    { name: 'ownershipDocs', maxCount: 5 },
+    { name: 'propertyImages', maxCount: 10 }
+]), async (req, res) => {
     try {
         console.log("============================================");
         console.log("📥 NEW ASSESSMENT REQUEST RECEIVED");
         console.log("============================================");
         console.log(req.body);
+        if (req.files) {
+            console.log({
+                ownershipDocs: req.files.ownershipDocs?.length || 0,
+                propertyImages: req.files.propertyImages?.length || 0
+            });
+        }
 
         const { propertyId, zone, sqFt, nic, buildingAge } = req.body;
 
@@ -304,8 +344,10 @@ app.post('/assess-property', async (req, res) => {
         console.error("\n❌ ERROR OCCURRED:");
         console.error(error.message);
         console.error("============================================\n");
+        const isUploadError = error instanceof multer.MulterError;
+        const statusCode = isUploadError || error.message?.includes('upload') ? 400 : 500;
 
-        res.status(500).json({
+        res.status(statusCode).json({
             error: error.message || "Transaction Failed",
             details: error.reason || "Unknown error"
         });

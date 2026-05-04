@@ -12,10 +12,18 @@ import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../constants/config';
 const CouncilDashboard = () => {
   const [form, setForm] = useState({ 
     propertyId: "", 
+    propertyAddress: "",
     zone: "A", 
     sqFt: "", 
     nic: "", 
-    buildingAge: "" 
+    buildingAge: "",
+    ownershipDocs: null,
+    propertyImages: null,
+    latitude: "",
+    longitude: "",
+    status: "Pending",
+    landSize: "",
+    estimatedValue: ""
   });
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -38,6 +46,98 @@ const CouncilDashboard = () => {
   const [legalSummaryLoading, setLegalSummaryLoading] = useState(false);
   const [legalSummaryError, setLegalSummaryError] = useState(null);
   const [legalSummaryWarning, setLegalSummaryWarning] = useState(null);
+
+  const DOC_FILE_TYPES = new Set([
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ]);
+  const MAX_DOC_SIZE_BYTES = 10 * 1024 * 1024;
+  const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+
+  const getFileValidationError = (file, allowDocs, maxBytes) => {
+    const isImage = file.type && file.type.startsWith('image/');
+    const isDoc = DOC_FILE_TYPES.has(file.type);
+
+    if (!(isImage || (allowDocs && isDoc))) {
+      return `Unsupported file type: ${file.name}`;
+    }
+
+    if (file.size > maxBytes) {
+      return `File too large: ${file.name}. Max ${Math.round(maxBytes / (1024 * 1024))}MB.`;
+    }
+
+    return null;
+  };
+
+  const validateFileList = (files, allowDocs, maxBytes) => {
+    if (!files || files.length === 0) return null;
+    for (const file of files) {
+      const error = getFileValidationError(file, allowDocs, maxBytes);
+      if (error) return error;
+    }
+    return null;
+  };
+
+  const validateCoordinates = (latitude, longitude) => {
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+
+    if (Number.isNaN(lat) || Number.isNaN(lon)) {
+      return 'Latitude and longitude must be valid numbers.';
+    }
+
+    if (lat < -90 || lat > 90) {
+      return 'Latitude must be between -90 and 90.';
+    }
+
+    if (lon < -180 || lon > 180) {
+      return 'Longitude must be between -180 and 180.';
+    }
+
+    return null;
+  };
+
+  const validateForm = () => {
+    const coordinateError = validateCoordinates(form.latitude, form.longitude);
+    if (coordinateError) return coordinateError;
+
+    if (form.estimatedValue !== "" && Number(form.estimatedValue) < 0) {
+      return 'Estimated value must be a positive number.';
+    }
+
+    const docsError = validateFileList(form.ownershipDocs, true, MAX_DOC_SIZE_BYTES);
+    if (docsError) return docsError;
+
+    const imagesError = validateFileList(form.propertyImages, false, MAX_IMAGE_SIZE_BYTES);
+    if (imagesError) return imagesError;
+
+    return null;
+  };
+
+  const handleOwnershipDocsChange = (e) => {
+    const files = e.target.files;
+    const error = validateFileList(files, true, MAX_DOC_SIZE_BYTES);
+    if (error) {
+      setStatus({ type: 'error', msg: '❌ Validation Failed', details: error });
+      e.target.value = '';
+      setForm((prev) => ({ ...prev, ownershipDocs: null }));
+      return;
+    }
+    setForm((prev) => ({ ...prev, ownershipDocs: files }));
+  };
+
+  const handlePropertyImagesChange = (e) => {
+    const files = e.target.files;
+    const error = validateFileList(files, false, MAX_IMAGE_SIZE_BYTES);
+    if (error) {
+      setStatus({ type: 'error', msg: '❌ Validation Failed', details: error });
+      e.target.value = '';
+      setForm((prev) => ({ ...prev, propertyImages: null }));
+      return;
+    }
+    setForm((prev) => ({ ...prev, propertyImages: files }));
+  };
 
   const fetchPropertyValue = async (propertyId) => {
     const provider = new ethers.JsonRpcProvider("https://ethereum-sepolia-rpc.publicnode.com");
@@ -64,12 +164,47 @@ const CouncilDashboard = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const validationError = validateForm();
+    if (validationError) {
+      setStatus({ type: 'error', msg: '❌ Validation Failed', details: validationError });
+      return;
+    }
+
     setLoading(true);
     setStatus(null);
 
     try {
-      // Send data to Backend Automation Engine
-      const response = await axios.post(`${BACKEND_URL}/assess-property`, form);
+      const hasFiles =
+        (form.ownershipDocs && form.ownershipDocs.length > 0) ||
+        (form.propertyImages && form.propertyImages.length > 0);
+
+      let response;
+      if (hasFiles) {
+        const payload = new FormData();
+        Object.entries(form).forEach(([key, value]) => {
+          if (key === 'ownershipDocs' && value) {
+            Array.from(value).forEach((file) => payload.append('ownershipDocs', file));
+            return;
+          }
+          if (key === 'propertyImages' && value) {
+            Array.from(value).forEach((file) => payload.append('propertyImages', file));
+            return;
+          }
+          payload.append(key, value === "" ? "" : value);
+        });
+
+        response = await axios.post(`${BACKEND_URL}/assess-property`, payload, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      } else {
+        const payload = {
+          ...form,
+          estimatedValue: form.estimatedValue === "" ? null : form.estimatedValue
+        };
+
+        // Send data to Backend Automation Engine
+        response = await axios.post(`${BACKEND_URL}/assess-property`, payload);
+      }
       
       setStatus({
         type: 'success',
@@ -85,7 +220,21 @@ const CouncilDashboard = () => {
       });
 
       // Clear form
-      setForm({ propertyId: "", zone: "A", sqFt: "", nic: "", buildingAge: "" });
+      setForm({ 
+        propertyId: "", 
+        propertyAddress: "",
+        zone: "A", 
+        sqFt: "", 
+        nic: "", 
+        buildingAge: "",
+        ownershipDocs: null,
+        propertyImages: null,
+        latitude: "",
+        longitude: "",
+        status: "Pending",
+        landSize: "",
+        estimatedValue: ""
+      });
     } catch (err) {
       console.error(err);
       setStatus({ 
@@ -268,6 +417,14 @@ const CouncilDashboard = () => {
             onChange={(e) => setForm({...form, propertyId: e.target.value})}
           />
 
+          <InputField
+            label="Property Address"
+            required
+            placeholder="e.g., 123 Main St, Colombo"
+            value={form.propertyAddress}
+            onChange={(e) => setForm({...form, propertyAddress: e.target.value})}
+          />
+
           <SelectField
             label="Location Zone"
             required
@@ -304,14 +461,95 @@ const CouncilDashboard = () => {
           />
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <InputField
+            label="Land Size"
+            required
+            type="number"
+            min="1"
+            placeholder="e.g., 1200"
+            value={form.landSize}
+            onChange={(e) => setForm({...form, landSize: e.target.value})}
+            helper="Use square meters or per council standard"
+          />
+
+          <InputField
+            label="Estimated Value"
+            type="number"
+            min="0"
+            placeholder="e.g., 25000000"
+            value={form.estimatedValue}
+            onChange={(e) => setForm({...form, estimatedValue: e.target.value})}
+            helper="Optional (leave blank for auto-calculation)"
+          />
+        </div>
+
         <InputField
-          label="National ID (NIC)"
+          label="Owner NIC"
           required
           placeholder="e.g., 199512345678 or 945671234V"
           value={form.nic}
           onChange={(e) => setForm({...form, nic: e.target.value})}
           helper="Citizen's National Identity Card number (Wallet will be auto-generated)"
         />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <InputField
+            label="Ownership or Legal Documents"
+            required
+            type="file"
+            accept=".pdf,.doc,.docx,image/*"
+            onChange={handleOwnershipDocsChange}
+            helper="Upload deed, title, or legal proof (max 10MB)"
+          />
+
+          <InputField
+            label="Property Images"
+            required
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handlePropertyImagesChange}
+            helper="Upload clear photos (front, side, inside, max 5MB each)"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <InputField
+            label="Latitude"
+            required
+            type="number"
+            step="any"
+            min="-90"
+            max="90"
+            placeholder="e.g., 6.9271"
+            value={form.latitude}
+            onChange={(e) => setForm({...form, latitude: e.target.value})}
+          />
+
+          <InputField
+            label="Longitude"
+            required
+            type="number"
+            step="any"
+            min="-180"
+            max="180"
+            placeholder="e.g., 79.8612"
+            value={form.longitude}
+            onChange={(e) => setForm({...form, longitude: e.target.value})}
+          />
+        </div>
+
+        <SelectField
+          label="Status"
+          required
+          value={form.status}
+          onChange={(e) => setForm({...form, status: e.target.value})}
+        >
+          <option value="Verified">Verified</option>
+          <option value="Pending">Pending</option>
+          <option value="Rejected">Rejected</option>
+        </SelectField>
 
         {/* Algorithm Preview - Contractor's Test Method */}
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border-2 border-green-200 overflow-hidden">
