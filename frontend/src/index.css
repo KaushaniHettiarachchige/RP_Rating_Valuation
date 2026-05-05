@@ -84,7 +84,7 @@
 .line {
   height: 0.25rem;
   width: 3rem;
-  background-color: #60a5fa;
+  background-color: #60fa6d;
   border-radius: 9999px;
 }
 
@@ -115,9 +115,9 @@
   color: #333;
 }
 
-/* Buttons and Cards */
+
 .button {
-  background-color: #1e3a8a; /* Changed to blue */
+  background-color: #238a1e; 
   color: white;
   padding: 15px 30px;
   border-radius: 25px;
@@ -129,7 +129,7 @@
 }
 
 .button:hover {
-  background-color: #1e40af; /* Darker blue for hover */
+  background-color: #49af1e; 
 }
 
 .card {
@@ -452,7 +452,7 @@
 }
 
 .valuation-button {
-  background-color: #1e3a8a;
+  background-color: #1e8a27;
   color: white;
   padding: 0.75rem 2rem;
   border-radius: 9999px;
@@ -463,7 +463,7 @@
 }
 
 .valuation-button:hover {
-  background-color: #1e40af;
+  background-color: #2caf1e;
 }
 
 /* Satellite Image Analysis Styles */
@@ -478,7 +478,7 @@
   font-weight: bold;
   text-align: center;
   margin-bottom: 1.5rem;
-  color: #1e3a8a;
+  color: #18b300;
 }
 
 .upload-section {
@@ -512,7 +512,7 @@
 .prediction-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #1e3a8a;
+  color: #1e8a34;
 }
 
 .area-details {

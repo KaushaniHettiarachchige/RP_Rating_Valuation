@@ -10,8 +10,7 @@ const Footer = () => {
   const links = ["Home", "Valuation", "Tax Point", "Market Trends", "Zone Map"];
 
   return (
-    <footer className="relative mt-24 overflow-hidden">
-      {/* Top accent bar */}
+    <footer className="relative overflow-hidden">
       <div
         className="h-1 w-full"
         style={{
@@ -20,7 +19,6 @@ const Footer = () => {
         }}
       />
 
-      {/* Background */}
       <div
         className="absolute inset-0 -z-10"
         style={{
@@ -29,7 +27,6 @@ const Footer = () => {
         }}
       />
 
-      {/* Dot grid */}
       <div
         className="absolute inset-0 -z-10 opacity-[0.06]"
         style={{
@@ -39,7 +36,6 @@ const Footer = () => {
         }}
       />
 
-      {/* Glowing orb */}
       <div
         className="absolute top-0 right-[15%] w-96 h-96 rounded-full -z-10 opacity-10 blur-3xl"
         style={{
@@ -54,9 +50,7 @@ const Footer = () => {
       />
 
       <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-16">
-        {/* Main grid */}
         <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr] gap-12 mb-14">
-          {/* ── Brand column ── */}
           <div className="flex flex-col gap-5">
             <img
               src={Logo}
@@ -69,7 +63,6 @@ const Footer = () => {
               assessments in Sri Lanka.
             </p>
 
-            {/* Research badge */}
             <div
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full w-fit"
               style={{
@@ -83,7 +76,6 @@ const Footer = () => {
               </span>
             </div>
 
-            {/* Contributors */}
             <div>
               <p className="text-green-400/60 text-[11px] uppercase tracking-widest mb-2">
                 Contributors
@@ -105,7 +97,6 @@ const Footer = () => {
             </div>
           </div>
 
-          {/* ── Quick links ── */}
           <div>
             <p className="text-green-400/60 text-[11px] uppercase tracking-widest mb-5">
               Navigation
@@ -125,7 +116,6 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* ── Tech stack columns ── */}
           {techStack.map(({ category, items }) => (
             <div key={category}>
               <p className="text-green-400/60 text-[11px] uppercase tracking-widest mb-5">
@@ -143,7 +133,6 @@ const Footer = () => {
           ))}
         </div>
 
-        {/* Divider */}
         <div
           className="w-full h-px mb-8"
           style={{
@@ -152,7 +141,6 @@ const Footer = () => {
           }}
         />
 
-        {/* Bottom bar */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-green-200/40 text-xs m-0">
             &copy; {new Date().getFullYear()} ValuerBot Project. All rights

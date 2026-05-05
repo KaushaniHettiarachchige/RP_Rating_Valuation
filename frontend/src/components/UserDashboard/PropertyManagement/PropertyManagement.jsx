@@ -2,6 +2,9 @@ import { useState } from "react";
 import { PropertyCard } from "./PropertyCard";
 import { AddPropertySection } from "./AddProperties";
 
+import { Dialog, DialogTitle, DialogContent, IconButton } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
+
 const SAMPLE_PROPERTIES = [
   {
     id: 1,
@@ -53,6 +56,7 @@ export default function PropertyManagement() {
   const [properties, setProperties] = useState(SAMPLE_PROPERTIES);
   const [valuationRequested, setValuationRequested] = useState([]);
   const [filter, setFilter] = useState("all");
+  const [openModal, setOpenModal] = useState(false);
 
   function handleAdd(data) {
     setProperties((prev) => [...prev, { ...data, id: Date.now() }]);
@@ -75,123 +79,85 @@ export default function PropertyManagement() {
   };
 
   return (
-    <div className=" bg-gradient-to-br from-green-50 via-white to-teal-50 p-4 md:p-8 font-sans container">
-      <div className=" mx-auto space-y-8">
+    <div className="bg-gradient-to-br from-green-50 via-white to-teal-50 p-4 md:p-8 font-sans container">
+      <div className="mx-auto space-y-8">
         <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center">
-                <svg
-                  className="w-4 h-4 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                  />
-                </svg>
-              </div>
-              <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-                Property Management
-              </h1>
-            </div>
-            <p className="text-sm text-gray-400 ml-10">
+            <h1 className="text-[28px] font-bold text-gray-900 tracking-tight">
+              Property Management
+            </h1>
+            <p className="text-sm text-gray-400">
               Manage, verify and valuate your properties
             </p>
           </div>
-          <div className="flex items-center gap-2 px-3.5 py-2 bg-white border border-green-100 rounded-xl shadow-sm">
-            <span className="text-2xl font-bold text-green-700">
-              {properties.length}
-            </span>
-            <span className="text-xs text-gray-400 leading-tight">
-              Total
-              <br />
-              Properties
-            </span>
-          </div>
+
+          <button
+            onClick={() => setOpenModal(true)}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 shadow-sm"
+          >
+            + Add Property
+          </button>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-4">
           {[
             {
               key: "verified",
               label: "Verified",
-              color: "text-emerald-700",
-              bg: "bg-emerald-50",
-              border: "border-emerald-100",
+              color: "text-emerald-600",
+              gradient: "from-emerald-500/10 to-emerald-100",
+              ring: "ring-emerald-200",
             },
             {
               key: "pending",
               label: "Pending",
-              color: "text-amber-700",
-              bg: "bg-amber-50",
-              border: "border-amber-100",
+              color: "text-amber-600",
+              gradient: "from-amber-500/10 to-amber-100",
+              ring: "ring-amber-200",
             },
             {
               key: "rejected",
               label: "Rejected",
-              color: "text-red-600",
-              bg: "bg-red-50",
-              border: "border-red-100",
+              color: "text-red-500",
+              gradient: "from-red-500/10 to-red-100",
+              ring: "ring-red-200",
             },
           ].map((s) => (
             <div
               key={s.key}
-              className={`${s.bg} border ${s.border} rounded-xl p-3 text-center`}
+              className={`relative overflow-hidden rounded-2xl p-4 bg-gradient-to-br ${s.gradient} 
+                backdrop-blur-md border border-white/40 ring-1 ${s.ring}
+                shadow-sm hover:shadow-md transition-all duration-300`}
             >
-              <p className={`text-2xl font-bold ${s.color}`}>{counts[s.key]}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+              <p className={`text-3xl font-semibold ${s.color}`}>
+                {counts[s.key]}
+              </p>
+              <p className="text-xs text-gray-500 mt-1 uppercase">{s.label}</p>
             </div>
           ))}
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          {[
-            { key: "all", label: "All" },
-            { key: "verified", label: "Verified" },
-            { key: "pending", label: "Pending" },
-            { key: "rejected", label: "Rejected" },
-          ].map((f) => (
+          {["all", "verified", "pending", "rejected"].map((f) => (
             <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-4 py-1.5 rounded-full text-xs font-medium border
                 ${
-                  filter === f.key
-                    ? "bg-green-600 text-white border-green-600 shadow-sm shadow-green-200"
-                    : "bg-white text-gray-500 border-green-100 hover:border-green-300 hover:text-green-700"
+                  filter === f
+                    ? "bg-green-600 text-white border-green-600"
+                    : "bg-white text-gray-500 border-green-100 hover:border-green-300"
                 }`}
             >
-              {f.label}
-              <span
-                className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] ${filter === f.key ? "bg-green-500 text-white" : "bg-gray-100 text-gray-400"}`}
-              >
-                {counts[f.key]}
-              </span>
+              {f}
+              <span className="ml-1 text-[10px]">{counts[f]}</span>
             </button>
           ))}
         </div>
 
         {filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
-            <svg
-              className="w-12 h-12 mx-auto mb-3 text-green-100"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"
-              />
-            </svg>
-            <p className="text-sm">No properties found</p>
+            No properties found
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -209,8 +175,29 @@ export default function PropertyManagement() {
           </div>
         )}
 
+        <Dialog
+          open={openModal}
+          onClose={() => setOpenModal(false)}
+          maxWidth="sm"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: "16px",
+              padding: "8px",
+            },
+          }}
+        >
+          <DialogTitle className="flex justify-between items-center">
+            Add Property
+            <IconButton onClick={() => setOpenModal(false)}>
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
 
-        <AddPropertySection onAdd={handleAdd} />
+          <DialogContent>
+            <AddPropertySection />
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

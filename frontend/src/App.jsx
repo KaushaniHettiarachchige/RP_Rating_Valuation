@@ -13,11 +13,11 @@ import BuildingValuation from "./components/valuation/BuildingValuation";
 import MyPropertiesSection from "./components/land-valuation/LandValuation";
 import ValuateLand from "./components/land-valuation/ValuateLand";
 import PropertyManagement from "./components/UserDashboard/PropertyManagement/PropertyManagement";
+import CouncilHome from "./components/CouncilDashboard/CouncilHome";
 function App() {
   const { isLoggedIn } = useSelector((state) => state.auth);
 
-  const storedUser = localStorage.getItem("user");
-  console.log("🚀 ~ App ~ storedUser:", storedUser);
+  const storedUser = JSON.parse(localStorage.getItem("user"));
 
   return (
     <BrowserRouter>
@@ -26,8 +26,19 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route
           path="/"
-          element={isLoggedIn ? <Home /> : <Navigate to="/login" />}
+          element={
+            !isLoggedIn ? (
+              <Navigate to="/login" />
+            ) : storedUser?.role === "public" ? (
+              <Home />
+            ) : storedUser?.role === "valuer" ? (
+              <CouncilHome />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
         />
+
         <Route
           path="/tax-point"
           element={isLoggedIn ? <TaxPoint /> : <Navigate to="/login" />}

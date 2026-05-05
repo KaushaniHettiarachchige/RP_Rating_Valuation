@@ -1,7 +1,7 @@
 import { useState } from "react";
-import ResidentPortal from "../../pages/ResidentPortal";
-import CouncilDashboard from "../../pages/CouncilDashboard";
+
 import { Container } from "@mui/material";
+import ResidentPortal from "../../pages/ResidentPortal";
 
 const TaxPoint = () => {
   const [activeTab, setActiveTab] = useState("resident");
