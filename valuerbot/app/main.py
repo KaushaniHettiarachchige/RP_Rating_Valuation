@@ -1,9 +1,7 @@
-# main.py
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.public_routes import router as public_router
-from app.api.official_routes import router as official_router
 from app.api.find_features import router as find_router
 from app.api.find_Places import router as find_places_router
 
@@ -20,7 +18,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(public_router)
-app.include_router(official_router)
+
 app.include_router(find_router)
 app.include_router(find_places_router)    

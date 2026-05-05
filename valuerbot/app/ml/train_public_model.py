@@ -6,14 +6,15 @@ import joblib
 data = pd.read_csv("data/land_prices_of_colombo.csv")
 
 
-def clean_number(col):
-    return col.astype(str).str.replace(",", "").astype(float)
-
-data["Price per Perch"] = clean_number(data["Price per Perch"])
+data["Price per Perch"] = (
+    data["Price per Perch"]
+    .astype(str)
+    .str.replace(",", "", regex=False)
+    .astype(float)
+)
 
 
 X = data[[
-    
     "Distance from fort",
     "count_schools",
     "count_uni",
@@ -42,8 +43,10 @@ model = XGBRegressor(
     random_state=42
 )
 
+
 model.fit(X, y)
 
-joblib.dump(model, "models/public_model.pkl")
 
-print("Model trained successfully !!")
+joblib.dump(model, "models/valuation_model.pkl")
+
+print("Model trained successfully!!")
