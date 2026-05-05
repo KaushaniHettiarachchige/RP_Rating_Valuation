@@ -11,10 +11,10 @@
   transition: filter 300ms;
 }
 .logo:hover {
-  filter: drop-shadow(0 0 2em #16a34aaa);
+  filter: drop-shadow(0 0 2em #646cffaa);
 }
 .logo.react:hover {
-  filter: drop-shadow(0 0 2em #22c55eaa);
+  filter: drop-shadow(0 0 2em #61dafbaa);
 }
 
 @keyframes logo-spin {
@@ -52,5 +52,36 @@
 }
 
 .read-the-docs {
-  color: #166534;
+  color: #888;
+}
+
+.MuiContainer-root {
+  max-width: none !important;
+  padding-left: 80px !important;
+  padding-right: 80px !important;
+}
+
+.container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+
+  /* sm: 600px */
+  @media (width >= 37.5rem) {
+    max-width: 60rem;
+  }
+
+  /* md: 960px */
+  @media (width >= 60rem) {
+    max-width: 80rem;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  /* lg: 1280px */
+  @media (width >= 80rem) {
+    max-width: 92rem;
+  }
 }

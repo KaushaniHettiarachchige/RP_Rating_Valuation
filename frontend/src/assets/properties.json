@@ -1,0 +1,236 @@
+{
+  "properties": [
+    {
+      "property_id": 201,
+      "latitude": 6.914722,
+      "longitude": 79.850556,
+      "address": "Colombo 03 - Kollupitiya (Marine Drive area)",
+      "landSize": 10.5,
+      "verified": true,
+      "price": 18500000,
+      "ownerId": 201,
+      "createdAt": "2026-04-01T09:00:00Z"
+    },
+    {
+      "property_id": 202,
+      "latitude": 6.896944,
+      "longitude": 79.855278,
+      "address": "Colombo 04 - Bambalapitiya (Galle Road side)",
+      "landSize": 8.2,
+      "verified": false,
+      "price": 14200000,
+      "ownerId": 202,
+      "createdAt": "2026-04-05T11:20:00Z"
+    },
+    {
+      "property_id": 203,
+      "latitude": 6.877778,
+      "longitude": 79.861111,
+      "address": "Colombo 06 - Wellawatte (Marine Drive stretch)",
+      "landSize": 6.8,
+      "verified": true,
+      "price": 12500000,
+      "ownerId": 203,
+      "createdAt": "2026-04-10T14:10:00Z"
+    },
+    {
+      "property_id": 204,
+      "latitude": 6.905833,
+      "longitude": 79.852222,
+      "address": "Colombo 07 - Cinnamon Gardens (Ward Place)",
+      "landSize": 15.0,
+      "verified": true,
+      "price": 35000000,
+      "ownerId": 204,
+      "createdAt": "2026-04-12T08:45:00Z"
+    },
+    {
+      "property_id": 205,
+      "latitude": 6.938889,
+      "longitude": 79.877778,
+      "address": "Colombo 09 - Dematagoda (Baseline Road)",
+      "landSize": 9.5,
+      "verified": false,
+      "price": 9800000,
+      "ownerId": 205,
+      "createdAt": "2026-04-15T13:30:00Z"
+    },
+    {
+      "property_id": 206,
+      "latitude": 6.888333,
+      "longitude": 79.872500,
+      "address": "Colombo 05 - Havelock Town",
+      "landSize": 11.3,
+      "verified": true,
+      "price": 21000000,
+      "ownerId": 206,
+      "createdAt": "2026-04-18T10:00:00Z"
+    },
+    {
+      "property_id": 207,
+      "latitude": 6.850833,
+      "longitude": 79.865556,
+      "address": "Dehiwala border area",
+      "landSize": 7.1,
+      "verified": false,
+      "price": 11000000,
+      "ownerId": 207,
+      "createdAt": "2026-04-20T16:45:00Z"
+    },
+    {
+      "property_id": 208,
+      "latitude": 6.931944,
+      "longitude": 79.847778,
+      "address": "Colombo 02 - Union Place",
+      "landSize": 12.0,
+      "verified": true,
+      "price": 27500000,
+      "ownerId": 208,
+      "createdAt": "2026-04-21T09:30:00Z"
+    },
+    {
+      "property_id": 209,
+      "latitude": 6.921389,
+      "longitude": 79.856944,
+      "address": "Colombo 03 - Galle Face inland",
+      "landSize": 5.6,
+      "verified": true,
+      "price": 19500000,
+      "ownerId": 209,
+      "createdAt": "2026-04-21T12:15:00Z"
+    },
+    {
+      "property_id": 210,
+      "latitude": 6.941111,
+      "longitude": 79.860833,
+      "address": "Colombo 10 - Maradana",
+      "landSize": 14.2,
+      "verified": false,
+      "price": 16800000,
+      "ownerId": 210,
+      "createdAt": "2026-04-22T08:00:00Z"
+    },
+    {
+      "property_id": 211,
+      "latitude": 6.912500,
+      "longitude": 79.861389,
+      "address": "Colombo 04 - Marine Drive inner block",
+      "landSize": 9.0,
+      "verified": true,
+      "price": 22300000,
+      "ownerId": 211,
+      "createdAt": "2026-04-22T14:40:00Z"
+    },
+
+    {
+      "property_id": 212,
+      "latitude": 6.848333,
+      "longitude": 79.926111,
+      "address": "Maharagama - High Level Road",
+      "landSize": 10.0,
+      "verified": true,
+      "price": 13500000,
+      "ownerId": 212,
+      "createdAt": "2026-04-23T09:00:00Z"
+    },
+    {
+      "property_id": 213,
+      "latitude": 6.840278,
+      "longitude": 80.002222,
+      "address": "Homagama town center",
+      "landSize": 12.5,
+      "verified": false,
+      "price": 9800000,
+      "ownerId": 213,
+      "createdAt": "2026-04-23T09:10:00Z"
+    },
+    {
+      "property_id": 214,
+      "latitude": 6.842222,
+      "longitude": 79.965556,
+      "address": "Kottawa junction (Pannipitiya road)",
+      "landSize": 9.8,
+      "verified": true,
+      "price": 14500000,
+      "ownerId": 214,
+      "createdAt": "2026-04-23T09:20:00Z"
+    },
+    {
+      "property_id": 215,
+      "latitude": 6.903056,
+      "longitude": 79.954167,
+      "address": "Malabe - New Kandy Road tech zone",
+      "landSize": 11.2,
+      "verified": true,
+      "price": 22000000,
+      "ownerId": 215,
+      "createdAt": "2026-04-23T09:30:00Z"
+    },
+    {
+      "property_id": 216,
+      "latitude": 6.801111,
+      "longitude": 79.922222,
+      "address": "Piliyandala lake road area",
+      "landSize": 13.0,
+      "verified": false,
+      "price": 16000000,
+      "ownerId": 216,
+      "createdAt": "2026-04-23T09:40:00Z"
+    },
+    {
+      "property_id": 217,
+      "latitude": 6.856944,
+      "longitude": 79.918889,
+      "address": "Maharagama - Pamunuwa zone",
+      "landSize": 7.5,
+      "verified": true,
+      "price": 11200000,
+      "ownerId": 217,
+      "createdAt": "2026-04-23T09:50:00Z"
+    },
+    {
+      "property_id": 218,
+      "latitude": 6.832500,
+      "longitude": 80.011111,
+      "address": "Homagama - Katuwana industrial area",
+      "landSize": 15.0,
+      "verified": true,
+      "price": 12500000,
+      "ownerId": 218,
+      "createdAt": "2026-04-23T10:00:00Z"
+    },
+    {
+      "property_id": 219,
+      "latitude": 6.895000,
+      "longitude": 79.942778,
+      "address": "Malabe - SLIIT / IT corridor",
+      "landSize": 8.0,
+      "verified": true,
+      "price": 19500000,
+      "ownerId": 219,
+      "createdAt": "2026-04-23T10:10:00Z"
+    },
+    {
+      "property_id": 220,
+      "latitude": 6.792778,
+      "longitude": 79.925000,
+      "address": "Piliyandala - Bokundara",
+      "landSize": 10.3,
+      "verified": false,
+      "price": 13800000,
+      "ownerId": 220,
+      "createdAt": "2026-04-23T10:20:00Z"
+    },
+    {
+      "property_id": 221,
+      "latitude": 6.845556,
+      "longitude": 79.972222,
+      "address": "Kottawa - Makumbura hub",
+      "landSize": 6.9,
+      "verified": true,
+      "price": 17000000,
+      "ownerId": 221,
+      "createdAt": "2026-04-23T10:30:00Z"
+    }
+  ]
+}
