@@ -12,12 +12,16 @@ import PropertyValuation from "./components/valuation/PropertyValuation";
 import BuildingValuation from "./components/valuation/BuildingValuation";
 import MyPropertiesSection from "./components/land-valuation/LandValuation";
 import ValuateLand from "./components/land-valuation/ValuateLand";
+import PropertyManagement from "./components/UserDashboard/PropertyManagement/PropertyManagement";
 function App() {
   const { isLoggedIn } = useSelector((state) => state.auth);
 
+  const storedUser = localStorage.getItem("user");
+  console.log("🚀 ~ App ~ storedUser:", storedUser);
+
   return (
     <BrowserRouter>
-      {isLoggedIn && <Header />} {/* show header only when logged in */}
+      {isLoggedIn && <Header />}
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route
@@ -53,6 +57,13 @@ function App() {
         <Route
           path="/valuate/:id"
           element={isLoggedIn ? <ValuateLand /> : <Navigate to="/login" />}
+        />
+
+        <Route
+          path="/propertyManagement"
+          element={
+            isLoggedIn ? <PropertyManagement /> : <Navigate to="/login" />
+          }
         />
       </Routes>
       {isLoggedIn && <Footer />}

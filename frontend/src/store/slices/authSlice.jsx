@@ -1,6 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
 
-// Check if user data exists in localStorage
 const storedUser = localStorage.getItem("user")
   ? JSON.parse(localStorage.getItem("user"))
   : null;
