@@ -2,10 +2,10 @@ import { useState } from "react";
 import Map from "../common/Map";
 import LandPlacesDropdown from "./LandPlaces";
 
-const LandAcsessbility = ({ property, places,features }) => {
+const LandAcsessbility = ({ property, places, features }) => {
   const [coordinates] = useState({
-    lat: property.latitude,
-    lng: property.longitude,
+    lat: property.location.lat,
+    lng: property.location.lng,
   });
 
   const [markerPos, setMarkerPos] = useState(null);
@@ -30,7 +30,7 @@ const LandAcsessbility = ({ property, places,features }) => {
       )}
 
       <div className="grid grid-cols-1 rounded-[20px] bg-emerald-100 w-full max-h-[450px] overflow-auto">
-        <LandPlacesDropdown places={places} features={features}/>
+        <LandPlacesDropdown places={places} features={features} />
       </div>
     </div>
   );

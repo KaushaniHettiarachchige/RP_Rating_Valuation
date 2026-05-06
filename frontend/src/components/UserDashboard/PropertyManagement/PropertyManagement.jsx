@@ -1,63 +1,57 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
+
 import { PropertyCard } from "./PropertyCard";
 import { AddPropertySection } from "./AddProperties";
 
 import { Dialog, DialogTitle, DialogContent, IconButton } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 
-const SAMPLE_PROPERTIES = [
-  {
-    id: 1,
-    address: "12 Galle Road, Colombo 03",
-    image:
-      "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=400&q=80",
-    lat: 6.8959,
-    lng: 79.8536,
-    verification: "verified",
-    valuation: null,
-    currency: "LKR",
-  },
-  {
-    id: 2,
-    address: "47 Duplication Road, Bambalapitiya",
-    image:
-      "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&q=80",
-    lat: 6.8812,
-    lng: 79.8579,
-    verification: "pending",
-    valuation: null,
-    currency: "LKR",
-  },
-  {
-    id: 3,
-    address: "8 Independence Ave, Borella",
-    image:
-      "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&q=80",
-    lat: 6.9105,
-    lng: 79.8691,
-    verification: "rejected",
-    valuation: null,
-    currency: "LKR",
-  },
-  {
-    id: 4,
-    address: "22 Park Street, Colombo 02",
-    image:
-      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=400&q=80",
-    lat: 6.9195,
-    lng: 79.8464,
-    verification: "verified",
-    valuation: 87000000,
-    currency: "LKR",
-  },
-];
-
 export default function PropertyManagement() {
-  const [properties, setProperties] = useState(SAMPLE_PROPERTIES);
+  const [properties, setProperties] = useState([]);
   const [valuationRequested, setValuationRequested] = useState([]);
   const [filter, setFilter] = useState("all");
   const [openModal, setOpenModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
+  // ================= FETCH DATA =================
+  useEffect(() => {
+    const fetchProperties = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const nic = "200033302786";
+
+        const res = await axios.get(
+          `http://localhost:3001/property/nic/${nic}`,
+        );
+
+        console.log("API response:", res.data);
+
+        // 🔥 SAFE DATA EXTRACTION
+        const list = Array.isArray(res?.data?.data) ? res.data.data : [];
+
+        const formatted = list.map((p) => ({
+          ...p,
+          id: p._id,
+        }));
+
+        setProperties(formatted);
+      } catch (err) {
+        console.error("Fetch error:", err.message);
+        setError("Failed to load properties");
+        setProperties([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProperties();
+  }, []);
+
+  // ================= HANDLERS =================
   function handleAdd(data) {
     setProperties((prev) => [...prev, { ...data, id: Date.now() }]);
   }
@@ -66,6 +60,7 @@ export default function PropertyManagement() {
     setValuationRequested((prev) => [...prev, id]);
   }
 
+  // ================= FILTER =================
   const filtered =
     filter === "all"
       ? properties
@@ -78,9 +73,24 @@ export default function PropertyManagement() {
     rejected: properties.filter((p) => p.verification === "rejected").length,
   };
 
+  // ================= LOADING =================
+  if (loading) {
+    return (
+      <div className="text-center py-16 text-gray-400">
+        Loading properties...
+      </div>
+    );
+  }
+
+  // ================= ERROR =================
+  if (error) {
+    return <div className="text-center py-16 text-red-400">{error}</div>;
+  }
+
   return (
     <div className="bg-gradient-to-br from-green-50 via-white to-teal-50 p-4 md:p-8 font-sans container">
       <div className="mx-auto space-y-8">
+        {/* HEADER */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-[28px] font-bold text-gray-900 tracking-tight">
@@ -99,6 +109,7 @@ export default function PropertyManagement() {
           </button>
         </div>
 
+        {/* STATUS CARDS */}
         <div className="grid grid-cols-3 gap-4">
           {[
             {
@@ -137,6 +148,7 @@ export default function PropertyManagement() {
           ))}
         </div>
 
+        {/* FILTER */}
         <div className="flex gap-2 flex-wrap">
           {["all", "verified", "pending", "rejected"].map((f) => (
             <button
@@ -155,6 +167,7 @@ export default function PropertyManagement() {
           ))}
         </div>
 
+        {/* GRID */}
         {filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
             No properties found
@@ -175,6 +188,7 @@ export default function PropertyManagement() {
           </div>
         )}
 
+        {/* MODAL */}
         <Dialog
           open={openModal}
           onClose={() => setOpenModal(false)}
@@ -195,7 +209,7 @@ export default function PropertyManagement() {
           </DialogTitle>
 
           <DialogContent>
-            <AddPropertySection />
+            <AddPropertySection onAdd={handleAdd} />
           </DialogContent>
         </Dialog>
       </div>

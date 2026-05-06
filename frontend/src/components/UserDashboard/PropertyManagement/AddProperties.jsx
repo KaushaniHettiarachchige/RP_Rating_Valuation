@@ -332,27 +332,70 @@ function ImageUploader({ value, preview, onChange }) {
   );
 }
 
+// ─── Updated DocumentUploader with Cloudinary upload ───────────────────────
 function DocumentUploader({ docs, onChange }) {
   const inputRef = useRef(null);
 
-  const handleFiles = (files) => {
+  const handleFiles = async (files) => {
+    // Add docs immediately with uploading:true so UI shows spinner
     const newDocs = Array.from(files).map((f) => ({
       name: f.name,
+      originalName: f.name,
       size: f.size,
       file: f,
-      type: f.type,
+      mimeType: f.type,
+      url: null,
+      uploading: true,
     }));
-    onChange([...docs, ...newDocs]);
+
+    const startIndex = docs.length;
+
+    // Merge into state right away (functional updater so we always get latest)
+    onChange((prev) => [...prev, ...newDocs]);
+
+    // Upload each file to Cloudinary in parallel
+    const uploaded = await Promise.all(
+      newDocs.map(async (doc) => {
+        try {
+          const fd = new FormData();
+          fd.append("file", doc.file);
+          fd.append("upload_preset", "property-val");
+
+          // Use /raw/upload for non-image files; images also work via /raw/upload
+          const res = await fetch(
+            `https://api.cloudinary.com/v1_1/dzbapn7y0/raw/upload`,
+            { method: "POST", body: fd },
+          );
+          const data = await res.json();
+          return {
+            ...doc,
+            url: data.secure_url || null,
+            uploading: false,
+          };
+        } catch {
+          return { ...doc, url: null, uploading: false };
+        }
+      }),
+    );
+
+    // Patch the docs that just finished uploading
+    onChange((prev) => {
+      const updated = [...prev];
+      uploaded.forEach((doc, i) => {
+        updated[startIndex + i] = doc;
+      });
+      return updated;
+    });
   };
 
-  const remove = (i) => onChange(docs.filter((_, idx) => idx !== i));
+  const remove = (i) => onChange((prev) => prev.filter((_, idx) => idx !== i));
 
   const fmt = (b) =>
     b > 1048576
       ? `${(b / 1048576).toFixed(1)} MB`
       : `${Math.round(b / 1024)} KB`;
 
-  const getIcon = (type) => {
+  const getIcon = (type = "") => {
     if (type.includes("pdf"))
       return { bg: "#fee2e2", color: "#dc2626", label: "PDF" };
     if (type.includes("image"))
@@ -431,7 +474,7 @@ function DocumentUploader({ docs, onChange }) {
       </div>
 
       {docs.map((doc, i) => {
-        const ic = getIcon(doc.type);
+        const ic = getIcon(doc.mimeType || doc.type);
         return (
           <div
             key={i}
@@ -442,7 +485,8 @@ function DocumentUploader({ docs, onChange }) {
               padding: "10px 14px",
               borderRadius: 10,
               background: "var(--color-background-secondary)",
-              border: "1px solid var(--color-border-tertiary)",
+              border: `1px solid ${doc.url ? "#bbf7d0" : "var(--color-border-tertiary)"}`,
+              transition: "border 0.3s",
             }}
           >
             <div
@@ -486,6 +530,28 @@ function DocumentUploader({ docs, onChange }) {
                 {fmt(doc.size)}
               </p>
             </div>
+            {/* Upload status badge */}
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 500,
+                padding: "3px 8px",
+                borderRadius: 20,
+                background: doc.uploading
+                  ? "#fef3c7"
+                  : doc.url
+                    ? "#dcfce7"
+                    : "#fee2e2",
+                color: doc.uploading
+                  ? "#92400e"
+                  : doc.url
+                    ? "#166534"
+                    : "#991b1b",
+                flexShrink: 0,
+              }}
+            >
+              {doc.uploading ? "Uploading…" : doc.url ? "Saved" : "Failed"}
+            </div>
             <button
               onClick={() => remove(i)}
               style={{
@@ -521,6 +587,7 @@ function DocumentUploader({ docs, onChange }) {
 
 export function AddPropertySection() {
   const [form, setForm] = useState(EMPTY_FORM);
+  console.log("🚀 ~ AddPropertySection ~ form:", form);
   const [errors, setErrors] = useState({});
   const [step, setStep] = useState(0);
 
@@ -580,20 +647,37 @@ export function AddPropertySection() {
       return;
     }
 
+    // Warn if any document is still uploading
+    const stillUploading = form.documents.some((d) => d.uploading);
+    if (stillUploading) {
+      setErrors({ api: "Please wait — some documents are still uploading." });
+      return;
+    }
+
     const payload = {
       nic: form.nic,
       address: form.address,
       type: form.type,
-      landSize: `${form.landSize} ${form.landUnit}`,
-      lat: parseFloat(form.lat),
-      lng: parseFloat(form.lng),
+      landSize: Number(form.landSize),
+
+      location: {
+        lat: parseFloat(form.lat),
+        lng: parseFloat(form.lng),
+      },
+
       ...(form.type === "full"
-        ? { stories: parseInt(form.stories), rooms: parseInt(form.rooms) }
+        ? {
+            stories: parseInt(form.stories),
+            rooms: parseInt(form.rooms),
+          }
         : {}),
+
       image:
         form.propertyImageUrl ||
         "https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=400&q=80",
-      documents: form.documents.map((d) => d.name),
+
+      documents: form.documents.map((d) => d.url).filter(Boolean),
+
       verification: "pending",
       valuation: null,
       currency: "LKR",
@@ -601,7 +685,7 @@ export function AddPropertySection() {
 
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/properties",
+        "http://localhost:3001/property/create",
         payload,
         {
           headers: {
@@ -618,6 +702,7 @@ export function AddPropertySection() {
       setErrors({ api: "Failed to save property. Please try again." });
     }
   };
+
   const labelMap = { land: "Land", full: "Full Property" };
 
   return (
@@ -979,7 +1064,15 @@ export function AddPropertySection() {
               </div>
               <DocumentUploader
                 docs={form.documents}
-                onChange={(docs) => setForm((f) => ({ ...f, documents: docs }))}
+                onChange={(docsOrUpdater) =>
+                  setForm((f) => ({
+                    ...f,
+                    documents:
+                      typeof docsOrUpdater === "function"
+                        ? docsOrUpdater(f.documents)
+                        : docsOrUpdater,
+                  }))
+                }
               />
 
               <div
@@ -1030,7 +1123,7 @@ export function AddPropertySection() {
                     [
                       "Documents",
                       form.documents.length
-                        ? `${form.documents.length} file(s)`
+                        ? `${form.documents.filter((d) => d.url).length}/${form.documents.length} uploaded`
                         : "None",
                     ],
                   ].map(([k, v]) => (
@@ -1060,6 +1153,12 @@ export function AddPropertySection() {
                   ))}
                 </div>
               </div>
+
+              {errors.api && (
+                <p style={{ fontSize: 13, color: "#ef4444", margin: 0 }}>
+                  {errors.api}
+                </p>
+              )}
             </>
           )}
 
