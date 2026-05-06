@@ -76,6 +76,16 @@ function App() {
             isLoggedIn ? <PropertyManagement /> : <Navigate to="/login" />
           }
         />
+        <Route
+          path="/council-ownership"
+          element={
+            isLoggedIn && storedUser?.role == "valuer" ? (
+              <CouncilDashboard />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
       </Routes>
       {isLoggedIn && <Footer />}
     </BrowserRouter>

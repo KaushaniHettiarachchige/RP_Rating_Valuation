@@ -21,13 +21,12 @@ const cards = [
     img: "https://images.unsplash.com/photo-1502005229762-cf1b2da7c5d6?q=80&w=1170&auto=format&fit=crop",
   },
   {
-    href: "/ownership-transfer",
+    href: "/council-ownership",
     label: "Ownership Transfer",
     sublabel: "Secure digital title transfer system",
     icon: SwapHorizRoundedIcon,
     img: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?q=80&w=1170&auto=format&fit=crop",
   },
-  
 ];
 
 const CouncilHome = () => {

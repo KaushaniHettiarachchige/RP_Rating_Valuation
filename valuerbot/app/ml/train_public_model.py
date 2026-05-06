@@ -37,9 +37,11 @@ y = data["Price per Perch"]
 
 
 model = XGBRegressor(
-    n_estimators=150,
-    max_depth=5,
-    learning_rate=0.08,
+    n_estimators=300,
+    max_depth=6,
+    learning_rate=0.05,
+    subsample=0.8,
+    colsample_bytree=0.8,
     random_state=42
 )
 

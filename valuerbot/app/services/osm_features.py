@@ -69,7 +69,7 @@ def fetch_all_features(lat, lon):
             "landuse": True,
         }
 
-        OSM_DATA = ox.features_from_point((lat, lon), tags=tags, dist=10000)
+        OSM_DATA = ox.features_from_point((lat, lon), tags=tags, dist=8000)
         print(f"OSM Loaded: {len(OSM_DATA)} features")
         return OSM_DATA
 
@@ -308,8 +308,8 @@ def extract_places(lat, lon, data):
 
     places = {}
 
-    places["schools"] = get_places(safe_filter(data, "amenity", "school"), lat, lon, 3)
-    places["universities"] = get_places(safe_filter(data, "amenity", "university"), lat, lon, 5)
+    places["schools"] = get_places(safe_filter(data, "amenity", "school"), lat, lon, 2)
+    places["universities"] = get_places(safe_filter(data, "amenity", "university"), lat, lon, 3)
     places["railway_stations"] = get_places(safe_filter(data, "railway", "station"), lat, lon, 5)
     places["banks"] = get_places(safe_filter(data, "amenity", "bank"), lat, lon, 2)
     places["supermarkets"] = get_places(safe_filter(data, "shop", "supermarket"), lat, lon, 2)
